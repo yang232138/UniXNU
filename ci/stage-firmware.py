@@ -58,6 +58,7 @@ libraries='''
   UniXNUPkg/Driver/UniXNUDxe/UniXNUDxe.inf
   UniXNUPkg/Driver/UniXNURamDiskDxe/UniXNURamDiskDxe.inf
   DarwinBootPkg/Driver/DarwinBoot.inf
+  lmiproPkg/MemoryDiagDxe/MemoryDiagDxe.inf
 '''
 s+=libraries
 # Every vendor binary is extracted from the matching stock XBL, never alioth.
@@ -70,6 +71,10 @@ for inc in (platform/'Include').glob('*.inc'):
     # Use the source disk drivers, preserving the required FAT stack.
     text=text.replace('Binaries/lmipro/MdeModulePkg/Universal/Disk/DiskIoDxe/DiskIoDxe.inf','MdeModulePkg/Universal/Disk/DiskIoDxe/DiskIoDxe.inf')
     text=text.replace('Binaries/lmipro/MdeModulePkg/Universal/Disk/PartitionDxe/PartitionDxe.inf','MdeModulePkg/Universal/Disk/PartitionDxe/PartitionDxe.inf')
+    if inc.name=='APRIORI.inc':
+        anchor='  INF Binaries/lmipro/QcomPkg/Drivers/TzDxe/TzDxeLA.inf'
+        assert text.count(anchor)==1
+        text=text.replace(anchor,'  INF lmiproPkg/MemoryDiagDxe/MemoryDiagDxe.inf\n'+anchor)
     inc.write_text(text)
 manifest=[]
 for rel in needed:
@@ -114,6 +119,11 @@ for line in cfg.splitlines():
 # Bootloader RAM starts at 0x80000000; never expose its secure prefix as free.
 entries.insert(0,'  {"HYP", 0x80000000, 0x005D0000, AddMem, MEM_RES, SYS_MEM_CAP, Reserv, NS_DEVICE},')
 entries.insert(1,'  {"HYP tail", 0x805F0000, 0x00010000, AddMem, MEM_RES, SYS_MEM_CAP, Reserv, NS_DEVICE},')
+# The measured bootloader FDT describes DRAM at 0xc0000000..0x180000000.
+# Its reserved-memory nodes do not intersect this 64 MiB early UEFI arena.
+# SCM's uncached allocator first requests pages below 0xffffffff; RamManagerDxe
+# has not exposed the remaining DDR at this point in the APRIORI sequence.
+entries.append('  {"Early low32 RAM", 0xC0000000, 0x04000000, AddMem, SYS_MEM, SYS_MEM_CAP, Conv, WRITE_BACK_XN},')
 # Match Mu's SEC validation before spending a cloud build or boot attempt.
 # IPC SHM occupies 0x805d0000..0x805f0000 inside the Linux HYP reservation;
 # retain its stock descriptor and reserve the surrounding HYP pieces.
@@ -128,6 +138,65 @@ for current,following in zip(ranges,ranges[1:]):
         raise RuntimeError(f'Memory map overlap: {current[2]} and {following[2]}')
 memory='#include <Library/MemoryMapLib.h>\nSTATIC EFI_MEMORY_REGION_DESCRIPTOR gMemoryDescriptor[] = {\n'+'\n'.join(entries)+'\n};\nVOID GetMemoryMap(OUT EFI_MEMORY_REGION_DESCRIPTOR **Map, OUT UINT8 *Count) { *Map=gMemoryDescriptor; *Count=ARRAY_SIZE(gMemoryDescriptor); }\n'
 (platform/'Library/MemoryMapLib/MemoryMapLib.c').write_text(memory)
+probe=platform/'MemoryDiagDxe'
+probe.mkdir(exist_ok=True)
+(probe/'MemoryDiagDxe.inf').write_text('''[Defines]
+ INF_VERSION = 0x00010017
+ BASE_NAME = LmiproMemoryDiagDxe
+ FILE_GUID = C6F53B23-FBA2-4F32-98A5-0ED5B379B257
+ MODULE_TYPE = DXE_DRIVER
+ VERSION_STRING = 1.0
+ ENTRY_POINT = MemoryDiagEntry
+[Sources]
+ MemoryDiagDxe.c
+[Packages]
+ MdePkg/MdePkg.dec
+[LibraryClasses]
+ UefiDriverEntryPoint
+ UefiBootServicesTableLib
+ DebugLib
+[Depex]
+ TRUE
+''')
+(probe/'MemoryDiagDxe.c').write_text(r'''#include <Uefi.h>
+#include <Library/DebugLib.h>
+#include <Library/UefiBootServicesTableLib.h>
+
+EFI_STATUS EFIAPI MemoryDiagEntry (EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *SystemTable) {
+  EFI_STATUS Status;
+  EFI_MEMORY_DESCRIPTOR *Map = NULL;
+  UINTN MapSize = 0, Key = 0, EntrySize = 0;
+  UINT32 Version = 0;
+  UINT64 FreePages = 0, Largest = 0;
+  EFI_PHYSICAL_ADDRESS Address = 0xffffffff;
+  Status = gBS->GetMemoryMap (&MapSize, Map, &Key, &EntrySize, &Version);
+  if (Status == EFI_BUFFER_TOO_SMALL) {
+    MapSize += 2 * EntrySize;
+    Status = gBS->AllocatePool (EfiBootServicesData, MapSize, (VOID **)&Map);
+    if (!EFI_ERROR (Status)) {
+      Status = gBS->GetMemoryMap (&MapSize, Map, &Key, &EntrySize, &Version);
+      if (!EFI_ERROR (Status)) {
+        for (UINTN Offset = 0; Offset < MapSize; Offset += EntrySize) {
+          EFI_MEMORY_DESCRIPTOR *D = (VOID *)((UINT8 *)Map + Offset);
+          if (D->Type == EfiConventionalMemory && D->PhysicalStart < 0x100000000ULL) {
+            UINT64 Pages = D->NumberOfPages;
+            UINT64 Limit = (0x100000000ULL - D->PhysicalStart) >> 12;
+            if (Pages > Limit) { Pages = Limit; }
+            FreePages += Pages;
+            if (Pages > Largest) { Largest = Pages; }
+          }
+        }
+      }
+      gBS->FreePool (Map);
+    }
+  }
+  DEBUG ((DEBUG_WARN, "LMIPRO MEM: low32 free=%Lu KiB largest=%Lu KiB map=%r\n", FreePages * 4, Largest * 4, Status));
+  Status = gBS->AllocatePages (AllocateMaxAddress, EfiReservedMemoryType, 0x82, &Address);
+  DEBUG ((DEBUG_WARN, "LMIPRO MEM: 520KiB low32 probe=%r address=0x%Lx\n", Status, Address));
+  if (!EFI_ERROR (Status)) { gBS->FreePages (Address, 0x82); }
+  return EFI_SUCCESS;
+}
+''')
 params=cfg.split('[ConfigParameters]',1)[1];values=[]
 for line in params.splitlines():
     m=re.fullmatch(r'\s*(\w+)\s*=\s*(0x[0-9A-Fa-f]+|\d+)\s*',line)
