@@ -6,6 +6,7 @@
 
   INF Binaries/lmi/QcomPkg/Drivers/TzDxe/ScmDxeLA.inf
   INF Binaries/lmi/QcomPkg/Drivers/TzDxe/TzDxeLA.inf
+  INF Binaries/lmi/QcomPkg/Drivers/ResetRuntimeDxe/ResetRuntimeDxe.inf
 
   INF MdeModulePkg/Universal/WatchdogTimerDxe/WatchdogTimer.inf
   INF MdeModulePkg/Universal/CapsuleRuntimeDxe/CapsuleRuntimeDxe.inf

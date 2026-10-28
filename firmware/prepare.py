@@ -51,6 +51,7 @@ def main():
     for folder in ('Platforms', 'Resources'):
         shutil.copytree(overlay / folder, mu / folder, dirs_exist_ok=True)
     pkg = mu / 'Platforms/Xiaomi/lmiPkg'
+    assert re.search(r'USE_CUSTOM_DISPLAY_DRIVER\s*=\s*0\b', (pkg / 'lmi.dsc').read_text()), 'review the display selection before changing the FV inventory'
     objects = parse_firmware(data)
     modules = {}
     config = None
@@ -77,7 +78,7 @@ def main():
         '\n'.join(p.read_text() for p in (pkg / 'Include').glob('*.inc')))))
     assert len(paths) >= 45, f'unexpected vendor module count {len(paths)}'
     manifest = {'xbl_sha256': XBL_SHA, 'uefiplat_cfg_sha256': sha(config),
-                'vendor_code_modified': False, 'modules': []}
+                'vendor_code_modified': False, 'display_mode': 'inherited-framebuffer', 'modules': []}
     for rel in paths:
         inf = mu / rel
         stem = inf.stem
@@ -112,6 +113,7 @@ def main():
 [Binaries.AARCH64]
 {binaries}''', newline='\n')
         manifest['modules'].append({'inf': rel, 'name': name, 'guid': guid,
+            'included_in_fv': name not in ('CPRDxe', 'DisplayDxe'),
             'pe32_bytes': len(image), 'pe32_sha256': sha(image),
             'depex_sha256': sha(deps[0]) if deps else None})
     (pkg / 'Include/VendorComponents.inc').write_text(
