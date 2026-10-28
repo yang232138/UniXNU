@@ -2,6 +2,24 @@
 import argparse,contextlib,io,re,shutil,struct,uuid,json,hashlib
 from pathlib import Path
 from uefi_firmware.uefi import FirmwareVolume,FirmwareFile,FirmwareFileSystemSection
+
+def adapt_vendor_binary(name,data):
+    if name!='TzDxe':return data,[]
+    # Fastboot-only bring-up reuses the QSEE environment established by stock
+    # XBL/ABL. Checked independently against both init call paths in this PE.
+    # Reference: https://github.com/Fsasdddd/lmi-uefi-touch-gpu/blob/main/tools/patch-lmi-firmware.py
+    expected='24dc99af29ad12fae95fc215840af1044178ab67b0b801621ef4cd112385ef74'
+    assert hashlib.sha256(data).hexdigest()==expected, 'Unsupported TZ firmware'
+    assert data[0x2e28:0x2e2c]==bytes.fromhex('e9a65139')
+    branch=struct.unpack_from('<I',data,0x2e30)[0]
+    assert branch & 0xff00001f==0x34000009
+    assert 0x2e30+((branch>>5)&0x7ffff)*4==0x2e80
+    assert data[0x32d8:0x32dc]==bytes.fromhex('c9a65139')
+    assert data[0xd469]==0
+    result=bytearray(data);result[0xd469]=1
+    assert [i for i,(a,b) in enumerate(zip(data,result)) if a!=b]==[0xd469]
+    return bytes(result),[dict(offset='0xd469',before='00',after='01',purpose='Reuse stock QSEE initialized state for temporary fastboot boot',source_sha256=expected)]
+
 ap=argparse.ArgumentParser();ap.add_argument('--mu',type=Path,required=True);ap.add_argument('--xbl',type=Path,required=True)
 a=ap.parse_args();mu=a.mu.resolve()
 # Diagnostic-only screen hold: retain the complete assertion line before the
@@ -83,6 +101,7 @@ for rel in needed:
     if name not in catalog:raise RuntimeError(f'Missing stock XBL module: {name}')
     f,ss=catalog[name];dest=mu/rel;dest.parent.mkdir(parents=True,exist_ok=True)
     pe=next(x.data for x in ss if x.type in (0x10,0x12))
+    pe,adaptations=adapt_vendor_binary(name,pe)
     binary=dest.parent/(stem+'.efi')
     binary.write_bytes(pe)
     depex=next((x.data for x in ss if x.type==0x13),None)
@@ -94,7 +113,7 @@ for rel in needed:
         dependency.write_bytes(depex);inf+=f' DXE_DEPEX|{dependency.name}|*\n'
     dest.write_text(inf)
     s+='\n[Components]\n  '+rel+'\n'
-    manifest.append(dict(name=name,guid=guid,binary=str(binary.relative_to(mu)),sha256=hashlib.sha256(pe).hexdigest()))
+    manifest.append(dict(name=name,guid=guid,binary=str(binary.relative_to(mu)),sha256=hashlib.sha256(pe).hexdigest(),adaptations=adaptations))
 assert len({record['binary'] for record in manifest})==len(manifest), 'Vendor output path collision'
 for record in manifest:
     assert hashlib.sha256((mu/record['binary']).read_bytes()).hexdigest()==record['sha256'], f"Vendor binary overwritten: {record['name']}"
