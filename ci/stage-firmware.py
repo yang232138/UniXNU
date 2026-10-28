@@ -23,7 +23,7 @@ for p in list(platform.rglob('*')):
     if p.is_file():
         try:p.write_text(p.read_text().replace('alioth','lmipro'))
         except UnicodeError:pass
-for p in list(platform.glob('alioth.*')):p.rename(p.with_name(p.name.replace('alioth','lmipro')))
+for p in list(platform.glob('alioth.*')):p.replace(p.with_name(p.name.replace('alioth','lmipro')))
 dsc=platform/'lmipro.dsc';s=dsc.read_text()
 s=re.sub(r'SOC_TYPE\s*=\s*2','SOC_TYPE = 0',s)
 s=re.sub(r'!if \$\(DEVICE_MODEL\) == 0.*?!endif','  gSiliciumPkgTokenSpaceGuid.PcdSmbiosSystemModel|"Redmi K30 Pro Zoom Edition"\n  gSiliciumPkgTokenSpaceGuid.PcdSmbiosSystemRetailSku|"lmipro"\n  gSiliciumPkgTokenSpaceGuid.PcdSmbiosSystemBoardModel|"lmipro"',s,flags=re.S)
@@ -87,7 +87,20 @@ for line in cfg.splitlines():
     base,size,label,*attrs=values
     entries.append('  {'+', '.join([label,base,size,*attrs])+'},')
 # Bootloader RAM starts at 0x80000000; never expose its secure prefix as free.
-entries.insert(0,'  {"HYP", 0x80000000, 0x00600000, AddMem, MEM_RES, SYS_MEM_CAP, Reserv, NS_DEVICE},')
+entries.insert(0,'  {"HYP", 0x80000000, 0x005D0000, AddMem, MEM_RES, SYS_MEM_CAP, Reserv, NS_DEVICE},')
+entries.insert(1,'  {"HYP tail", 0x805F0000, 0x00010000, AddMem, MEM_RES, SYS_MEM_CAP, Reserv, NS_DEVICE},')
+# Match Mu's SEC validation before spending a cloud build or boot attempt.
+# IPC SHM occupies 0x805d0000..0x805f0000 inside the Linux HYP reservation;
+# retain its stock descriptor and reserve the surrounding HYP pieces.
+ranges=[]
+for entry in entries:
+    match=re.search(r'\{"([^"]+)",\s*(0x[0-9a-fA-F]+),\s*(0x[0-9a-fA-F]+)',entry)
+    assert match,entry
+    name,base,size=match.groups();ranges.append((int(base,16),int(size,16),name))
+ranges.sort()
+for current,following in zip(ranges,ranges[1:]):
+    if current[0]>=0x80000000 and current[0]+current[1]>following[0]:
+        raise RuntimeError(f'Memory map overlap: {current[2]} and {following[2]}')
 memory='#include <Library/MemoryMapLib.h>\nSTATIC EFI_MEMORY_REGION_DESCRIPTOR gMemoryDescriptor[] = {\n'+'\n'.join(entries)+'\n};\nVOID GetMemoryMap(OUT EFI_MEMORY_REGION_DESCRIPTOR **Map, OUT UINT8 *Count) { *Map=gMemoryDescriptor; *Count=ARRAY_SIZE(gMemoryDescriptor); }\n'
 (platform/'Library/MemoryMapLib/MemoryMapLib.c').write_text(memory)
 params=cfg.split('[ConfigParameters]',1)[1];values=[]
