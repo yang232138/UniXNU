@@ -95,7 +95,7 @@ def main():
         guid = str(uuid.UUID(bytes_le=bytes(obj.guid)))
         inf.parent.mkdir(parents=True, exist_ok=True)
         # Scm and Tz share a directory: each gets its own PE and depex filename.
-        pefile = stem + '.pe32'
+        pefile = stem + '.efi'
         (inf.parent / pefile).write_bytes(image)
         binaries = f'  PE32|{pefile}|*\n'
         if deps:

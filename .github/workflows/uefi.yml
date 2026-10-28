@@ -50,7 +50,7 @@ jobs:
         env:
           UNIXNU_SOURCE: ${{ github.workspace }}/unixnu
           STOCK_OUTPUT: ${{ github.workspace }}/stock-inputs
-          XBL_ONLY: '1'
+          BOOT_INPUTS: '1'
         run: |
           set -euo pipefail
           python3 device/firmware/extract-stock.py 2>&1 | tee results/stock-extraction.log
@@ -63,6 +63,10 @@ jobs:
           cp mu/firmware-inputs.json results/
           cp mu/Platforms/Xiaomi/lmiPkg/Library/MemoryMapLib/MemoryMapLib.c results/
           cp mu/Platforms/Xiaomi/lmiPkg/Library/ConfigurationMapLib/ConfigurationMapLib.c results/
+      - name: Prepare and verify this handset's boot-image inputs
+        run: |
+          set -euo pipefail
+          python3 device/firmware/boot-inputs.py --boot stock-inputs/boot.img --dtbo stock-inputs/dtbo.img --mu mu --unixnu unixnu --output results 2>&1 | tee results/boot-inputs.log
       - name: Build the EFI package and UEFI through UniXNU
         working-directory: unixnu
         run: |
@@ -77,6 +81,13 @@ jobs:
           cp mu/Build/lmiPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd results/
           sha256sum results/SILICIUM_UEFI.fd > results/SHA256SUMS
           echo 'UEFI FD and required-module checks passed. Device runtime is not verified.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Build and verify the temporary-boot image
+        working-directory: unixnu
+        run: |
+          set -euo pipefail
+          ./unixnu bootimg --uefi ../mu --dtb ../results/firmware.dtb --ramdisk none --output ../results/boot.img 2>&1 | tee ../results/boot-image.log
+          sha256sum ../results/boot.img >> ../results/SHA256SUMS
+          echo 'boot.img is a UEFI menu smoke-test image with an empty ramdisk; no XNU or OS payload is included.' >> "$GITHUB_STEP_SUMMARY"
       - name: Collect build diagnostics
         if: always()
         run: |

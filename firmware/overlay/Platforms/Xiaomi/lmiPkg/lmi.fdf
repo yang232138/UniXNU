@@ -142,3 +142,12 @@ READ_LOCK_STATUS   = TRUE
   }
 
   !include SiliciumPkg/Common.fdf.inc
+
+# The shared rules provide source runtime drivers but omit the binary variant.
+# Preserve the PE subsystem and original depex for the target XBL runtime DXEs.
+[Rule.Common.DXE_RUNTIME_DRIVER.BINARY]
+  FILE DRIVER = $(NAMED_GUID) {
+    DXE_DEPEX DXE_DEPEX Optional |.depex
+    PE32 PE32 |.efi
+    UI STRING="$(MODULE_NAME)" Optional
+  }

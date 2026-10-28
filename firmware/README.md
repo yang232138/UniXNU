@@ -29,3 +29,7 @@ This independent firmware job does not require a successful XNU compilation.
 It publishes the FD, module hashes and text logs. A valid FD is not proof that
 SCM/TZ, the menu or XNU works on this handset. Review runtime memory/TZ handoff
 before packaging a fresh temporary-boot image; never send a raw FD to fastboot.
+
+## Deliverable
+
+The artifact now includes boot.img, boot.json and SHA256SUMS. It is an Android-v2 UEFI menu smoke-test image with an empty ramdisk, as allowed by the boot guide; it contains no XNU kernel or operating system. The firmware DTB is reconstructed from matching stock boot/DTBO input and its digest must match the independently extracted handset tree. The board adapter retains strict shim/FD and v2 DTB-section round-trip checks. No automatic flashing or device boot is performed by CI.

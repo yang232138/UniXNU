@@ -24,7 +24,7 @@ class CachedRange(RangeFile):
 with zipfile.ZipFile(io.BufferedReader(CachedRange(url,block=1024*1024))) as archive:
     names=archive.namelist()
     (out/'members.json').write_text(json.dumps(names,indent=2))
-    wanted=('xbl_4.elf',) if os.environ.get('XBL_ONLY')=='1' else ('boot.img','dtbo.img','xbl.elf','xbl_config.elf','xbl_4.elf','xbl_5.elf')
+    wanted=('xbl_4.elf', 'boot.img', 'dtbo.img') if os.environ.get('BOOT_INPUTS')=='1' else (('xbl_4.elf',) if os.environ.get('XBL_ONLY')=='1' else ('boot.img','dtbo.img','xbl.elf','xbl_config.elf','xbl_4.elf','xbl_5.elf'))
     selected=[n for n in names if pathlib.PurePosixPath(n).name in wanted]
     print('SELECTED',selected,flush=True)
     manifest=[]
