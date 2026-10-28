@@ -1,0 +1,40 @@
+name: Documented lmipro configuration
+on:
+  push:
+    branches: [lmipro-documentation-20261028]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  configuration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: 120067ccc43ebb5e76ec62c9219a48c897052838
+          path: tools
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate structured porting record
+        run: python3 tools/scripts/porting-record.py check --device .
+      - name: Resolve documented device configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          cd tools
+          ./unixnu defconfig lmipro_defconfig -D "$GITHUB_WORKSPACE"
+          ./unixnu fetch -D "$GITHUB_WORKSPACE"
+          ./unixnu status --json -D "$GITHUB_WORKSPACE" > "$GITHUB_WORKSPACE/results/status.json"
+          ./unixnu tree -D "$GITHUB_WORKSPACE"
+          cp "$GITHUB_WORKSPACE/unixnu.lock" "$GITHUB_WORKSPACE/results/"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lmipro-documentation-checks
+          path: results/
+          retention-days: 14

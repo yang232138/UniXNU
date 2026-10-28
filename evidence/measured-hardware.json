@@ -1,0 +1,375 @@
+{
+  "root": {
+    "model": "Qualcomm Technologies, Inc. xiaomi lmi",
+    "compatible": "qcom,kona-mtp, qcom,kona, qcom,mtp",
+    "qcom,msm-id": [
+      "0x164",
+      "0x20001"
+    ],
+    "qcom,board-id": [
+      "0x25",
+      "0x0"
+    ]
+  },
+  "memory": [
+    {
+      "name": "memory",
+      "device_type": "memory",
+      "reg": [
+        "0x0",
+        "0x80000000",
+        "0x0",
+        "0x3bb00000",
+        "0x1",
+        "0x80000000",
+        "0x1",
+        "0x0",
+        "0x0",
+        "0xc0000000",
+        "0x0",
+        "0xc0000000"
+      ]
+    }
+  ],
+  "reserved": [
+    {
+      "name": "hyp_region@80000000",
+      "reg": [
+        "0x0",
+        "0x80000000",
+        "0x0",
+        "0x600000"
+      ]
+    },
+    {
+      "name": "xbl_aop_region@80700000",
+      "reg": [
+        "0x0",
+        "0x80600000",
+        "0x0",
+        "0x260000"
+      ]
+    },
+    {
+      "name": "reserved-memory@80860000",
+      "reg": [
+        "0x0",
+        "0x80860000",
+        "0x0",
+        "0x20000"
+      ],
+      "compatible": "qcom,cmd-db"
+    },
+    {
+      "name": "res_xbl_uefi_log_region@80880000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x80880000",
+        "0x0",
+        "0x14000"
+      ]
+    },
+    {
+      "name": "smem_region@80900000",
+      "reg": [
+        "0x0",
+        "0x80900000",
+        "0x0",
+        "0x200000"
+      ]
+    },
+    {
+      "name": "removed_region@80b00000",
+      "reg": [
+        "0x0",
+        "0x80b00000",
+        "0x0",
+        "0x5300000"
+      ]
+    },
+    {
+      "name": "pil_camera_region@86200000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x86200000",
+        "0x0",
+        "0x500000"
+      ]
+    },
+    {
+      "name": "pil_wlan_fw_region@86700000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x86700000",
+        "0x0",
+        "0x100000"
+      ]
+    },
+    {
+      "name": "pil_ipa_fw_region@86800000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x86800000",
+        "0x0",
+        "0x10000"
+      ]
+    },
+    {
+      "name": "pil_ipa_gsi_region@86810000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x86810000",
+        "0x0",
+        "0xa000"
+      ]
+    },
+    {
+      "name": "pil_gpu_region@8681a000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x8681a000",
+        "0x0",
+        "0x2000"
+      ]
+    },
+    {
+      "name": "pil_npu_region@86900000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x86900000",
+        "0x0",
+        "0x500000"
+      ]
+    },
+    {
+      "name": "pil_video_region@86e00000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x86e00000",
+        "0x0",
+        "0x500000"
+      ]
+    },
+    {
+      "name": "pil_cvp_region@87300000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x87300000",
+        "0x0",
+        "0x500000"
+      ]
+    },
+    {
+      "name": "pil_cdsp_region@87800000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x87800000",
+        "0x0",
+        "0x1400000"
+      ]
+    },
+    {
+      "name": "pil_slpi_region@88c00000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x88c00000",
+        "0x0",
+        "0x2f00000"
+      ]
+    },
+    {
+      "name": "pil_adsp_region@8bb00000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x8bb00000",
+        "0x0",
+        "0x2500000"
+      ]
+    },
+    {
+      "name": "pil_spss_region@8e000000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x8e000000",
+        "0x0",
+        "0x100000"
+      ]
+    },
+    {
+      "name": "cdsp_secure_heap@8e100000",
+      "compatible": "removed-dma-pool",
+      "reg": [
+        "0x0",
+        "0x8e100000",
+        "0x0",
+        "0x4600000"
+      ]
+    },
+    {
+      "name": "adsp_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "sdsp_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "cdsp_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "cont_splash_region@9c000000",
+      "reg": [
+        "0x0",
+        "0x9c000000",
+        "0x0",
+        "0x2300000"
+      ]
+    },
+    {
+      "name": "disp_rdump_region@9c000000",
+      "reg": [
+        "0x0",
+        "0xb0400000",
+        "0x0",
+        "0x1000000"
+      ],
+      "compatible": "removed-dma-pool"
+    },
+    {
+      "name": "dfps_data_region@9e300000",
+      "reg": [
+        "0x0",
+        "0x9e300000",
+        "0x0",
+        "0x100000"
+      ]
+    },
+    {
+      "name": "mem_dump_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "sp_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "user_contig_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "qseecom_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "qseecom_ta_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "secure_display_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "cnss_wlan_region",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "linux,cma",
+      "compatible": "shared-dma-pool"
+    },
+    {
+      "name": "mailbox_region",
+      "compatible": "shared-dma-pool"
+    }
+  ],
+  "cpus": [
+    {
+      "name": "cpu@0",
+      "device_type": "cpu",
+      "compatible": "qcom,kryo",
+      "reg": [
+        "0x0",
+        "0x0"
+      ]
+    },
+    {
+      "name": "cpu@100",
+      "device_type": "cpu",
+      "compatible": "qcom,kryo",
+      "reg": [
+        "0x0",
+        "0x100"
+      ]
+    },
+    {
+      "name": "cpu@200",
+      "device_type": "cpu",
+      "compatible": "qcom,kryo",
+      "reg": [
+        "0x0",
+        "0x200"
+      ]
+    },
+    {
+      "name": "cpu@300",
+      "device_type": "cpu",
+      "compatible": "qcom,kryo",
+      "reg": [
+        "0x0",
+        "0x300"
+      ]
+    },
+    {
+      "name": "cpu@400",
+      "device_type": "cpu",
+      "compatible": "qcom,kryo",
+      "reg": [
+        "0x0",
+        "0x400"
+      ]
+    },
+    {
+      "name": "cpu@500",
+      "device_type": "cpu",
+      "compatible": "qcom,kryo",
+      "reg": [
+        "0x0",
+        "0x500"
+      ]
+    },
+    {
+      "name": "cpu@600",
+      "device_type": "cpu",
+      "compatible": "qcom,kryo",
+      "reg": [
+        "0x0",
+        "0x600"
+      ]
+    },
+    {
+      "name": "cpu@700",
+      "device_type": "cpu",
+      "compatible": "qcom,kryo",
+      "reg": [
+        "0x0",
+        "0x700"
+      ]
+    },
+    {
+      "name": "cpu-map"
+    }
+  ]
+}

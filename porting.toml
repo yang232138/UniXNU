@@ -1,0 +1,188 @@
+schema_version = 1
+[device]
+name = "lmipro"
+soc = "SM8250"
+os_profile = "ipados-17.7.11-21H461"
+summary = "Redmi K30 Pro Zoom Edition; documentation-led configuration baseline. No XNU device boot or working UEFI menu is claimed."
+
+[[area]]
+id = "configuration"
+status = "planned"
+components = ["ArmDTPlatform", "ArmCpu", "SoftwareAES", "XnuPrelink", "DarwinBoot"]
+paths = ["board.toml", "feeds.toml", "configs/**", "AGENTS.md", ".github/**", ".gitignore", "local.toml.example", "evidence/**"]
+inputs = ["ARM64, FFT-infra SM8250 at a6e7e36caab58f5b9a5625dbdb8da2bf290fa5cc and iPadOS 17.7.11/21H461."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["ARM64, FFT-infra SM8250 at a6e7e36caab58f5b9a5625dbdb8da2bf290fa5cc and iPadOS 17.7.11/21H461."]
+completion = ["All source pins resolve; every selected component has a record; status shows the intended overrides and patch order."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Complete the documented defconfig, fetch, status and tree checks and commit the generated lock."]
+evidence = []
+
+[[area]]
+id = "firmware"
+status = "planned"
+components = ["DarwinBoot"]
+paths = ["proprietary-files.txt", "scripts/extract-files.py", "scripts/gen-touch-firmware.py"]
+inputs = ["Android boot header v2, 4096-byte pages; target stock XBL modules and firmware DTB are separate inputs."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["Android boot header v2, 4096-byte pages; target stock XBL modules and firmware DTB are separate inputs."]
+completion = ["Firmware image builds, enters UniXNU, publishes the framebuffer and preserves the documented memory reservations."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Review DSC/FDF, FAT/RAM-disk/DarwinBoot and Advanced Logger integration before another device boot."]
+evidence = []
+
+[[area]]
+id = "cpu"
+status = "planned"
+components = ["ArmCpu"]
+paths = ["package/CpuFreq*", "scripts/*armcpu*"]
+inputs = ["Measured MPIDR affinities 0x0 through 0x700; only cpu0 is enabled in this draft DTS."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["Measured MPIDR affinities 0x0 through 0x700; only cpu0 is enabled in this draft DTS."]
+completion = ["Every enabled CPU reaches its entry checkpoint and timer/IPI handling works on each enabled CPU."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Verify the selected ArmCpu source consumes the SM8250 GIC and timer resources before enabling secondary CPUs."]
+evidence = [{kind = "source", reference = "evidence/measured-hardware.json", result = "Sanitized properties collected from this device through a temporarily booted recovery; recovery-kernel and original-bootloader provenance must remain distinguished."}]
+
+[[area]]
+id = "memory"
+status = "planned"
+components = ["ArmDTPlatform"]
+paths = ["dts/**", "package/*Smmu*", "package/*Memory*", "scripts/*smmu*", "scripts/*memory*"]
+inputs = ["Measured DRAM and static reservations are recorded in evidence/measured-hardware.json; draft XNU RAM uses c0000000..180000000."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["Measured DRAM and static reservations are recorded in evidence/measured-hardware.json; draft XNU RAM uses c0000000..180000000."]
+completion = ["All handoff regions are accounted for and each enabled DMA engine accesses its allocated range with the documented cache policy."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Reconcile XNU handoff RAM, UEFI memory map, all reservations and DMA constraints; compile DTS and inspect generated ADT."]
+evidence = [{kind = "source", reference = "evidence/measured-hardware.json", result = "Sanitized properties collected from this device through a temporarily booted recovery; recovery-kernel and original-bootloader provenance must remain distinguished."}]
+
+[[area]]
+id = "storage"
+status = "planned"
+components = []
+paths = ["drivers/ShengUfs", "scripts/*ufs*", "scripts/*storage*", "scripts/*userdata*", "scripts/*root*"]
+inputs = ["Original UFS partition backup lengths and hashes are recorded; no native SM8250 UFS component is selected."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["Original UFS partition backup lengths and hashes are recorded; no native SM8250 UFS component is selected."]
+completion = ["Host: register, clock, link and SMMU facts match the board inventory.", "Reads: SCSI capacity, GPT and known blocks are correct; OS/SystemOS windows stay within userdata.", "Root: the configured volume mounts and launchd starts. Persistence: writes survive reboot within the allocated Data region."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Audit controller/PHY, clocks, resets, SMMU, LUN and GPT geometry against the target before implementing root-volume access."]
+evidence = []
+
+[[area]]
+id = "display"
+status = "planned"
+components = []
+paths = ["package/*Display*", "package/*Framebuffer*", "package/*Backlight*", "package/AppleARMBacklight.cpp", "package/GeniI2c*", "scripts/*display*", "scripts/*gop*", "scripts/*framebuffer*"]
+inputs = ["Firmware text was observed in prior diagnostic trials; a usable GOP/menu and XNU display driver are not verified."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["Firmware text was observed in prior diagnostic trials; a usable GOP/menu and XNU display driver are not verified."]
+completion = ["A known frame appears with correct geometry and colors, then userland presentation and backlight controls work."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Measure GOP base, stride, format and panel geometry and review GopFramebuffer ABI before selecting it."]
+evidence = []
+
+[[area]]
+id = "input"
+status = "planned"
+components = []
+paths = ["drivers/ShengHidInput", "drivers/ShengNovatekTouch", "package/*Touch*", "package/*Button*", "scripts/*touch*", "scripts/*hid*"]
+inputs = ["A focaltech@38 node exists in the measured target tree; chip revision, protocol and button mapping remain unaudited."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["A focaltech@38 node exists in the measured target tree; chip revision, protocol and button mapping remain unaudited."]
+completion = ["Touches map to the display, simultaneous contacts keep stable IDs, release events arrive, and buttons produce expected HID reports."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Identify the exact touch chip and bus resources and implement matching input services."]
+evidence = []
+
+[[area]]
+id = "gpu"
+status = "planned"
+components = []
+paths = ["package/*Gpu*", "package/*Gmu*", "package/*Adreno*", "scripts/*adreno*", "scripts/*gpu*", "scripts/*metal*", "scripts/*turnip*", "scripts/*air*"]
+inputs = ["Target SoC SM8250 uses Adreno 650; the Adreno740 component is not selected."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["Target SoC SM8250 uses Adreno 650; the Adreno740 component is not selected."]
+completion = ["GPU submissions complete, mapping/fence handling is correct, a known image renders, and the selected Metal client presents it."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Review A650-specific firmware, power, SMMU, submission and OS ABI support before adding a GPU implementation."]
+evidence = []
+
+[[area]]
+id = "network"
+status = "planned"
+components = []
+paths = ["drivers/Ath12kWifi", "package/*Wifi*", "package/MhiBoot*", "scripts/*wifi*", "scripts/*mhi*"]
+inputs = ["No Wi-Fi component has been selected or tested on this target."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["No Wi-Fi component has been selected or tested on this target."]
+completion = ["Scanning, association, address configuration and sustained receive/transmit traffic pass with the selected firmware."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Inventory target wireless chip, firmware, bus, interrupts and DMA resources from original inputs."]
+evidence = []
+
+[[area]]
+id = "audio"
+status = "planned"
+components = []
+paths = ["package/*Adsp*", "package/*Audio*", "package/*Gpr*", "package/QcomGlink*", "package/QcomMdt*", "package/QcomSmem*", "package/QcomSmp2p*", "scripts/*adsp*", "scripts/*audio*", "scripts/*gpr*"]
+inputs = ["No DSP/audio component has been selected or tested."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["No DSP/audio component has been selected or tested."]
+completion = ["Each declared route carries the selected audio format through playback or capture and handles start/stop correctly."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Inventory DSP firmware services, codec, clocks and routes before implementing audio."]
+evidence = []
+
+[[area]]
+id = "power"
+status = "planned"
+components = []
+paths = ["package/*Battery*", "package/*Battmgr*", "package/*Power*", "package/*PlatformPower*", "package/QcomQmp*", "package/QcomRpmh*", "package/QcomScm.h", "scripts/*power*", "scripts/*battery*", "scripts/*pmgr*"]
+inputs = ["No suspend, charging, battery or CPU frequency service has been verified."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["No suspend, charging, battery or CPU frequency service has been verified."]
+completion = ["Declared power controls and battery readings match observations; each claimed sleep/resume transition restores its dependent peripherals."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Determine firmware ownership and hardware interfaces before enabling power-management services."]
+evidence = []
+
+[[area]]
+id = "packaging"
+status = "planned"
+components = ["SoftwareAES", "XnuPrelink"]
+paths = ["scripts/*payload*", "scripts/*image*", "scripts/*flash*", "patches/**", "package/Kit.toml"]
+inputs = ["The selected OS profile pins XNU/IPSW and ABI; previous trial images contained UEFI only."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["The selected OS profile pins XNU/IPSW and ABI; previous trial images contained UEFI only."]
+completion = ["Kernel and prelink succeed, payload contains all declared inputs, and the boot image matches the bootloader format and size limit."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Prepare kernelcache, trust-cache, Data seed, ADT identity and root-volume policy before kernel/package/firmware/payload/bootimg assembly."]
+evidence = []
+
+[[area]]
+id = "diagnostics"
+status = "planned"
+components = []
+paths = ["scripts/check-*", "scripts/probe-*", "scripts/audit-*", "scripts/read-*", "scripts/prepare-*", "scripts/data/**", "package/tests/**", "package/*Tests*", "package/*Diagnostic*", "package/*Probe*", "package/Boot*", "package/linux-log/**", "unixnu.lock"]
+inputs = ["Prior local trial metadata is archived separately; tests reached DXE but did not confirm a working UniXNU menu."]
+configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
+procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
+findings = ["Prior local trial metadata is archived separately; tests reached DXE but did not confirm a working UniXNU menu."]
+completion = ["Each claimed milestone has a reproducible command, a matching source/image revision and an accessible result."]
+limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
+next_action = ["Integrate the documented Advanced Logger QR export and record every image revision and last successful checkpoint."]
+evidence = []

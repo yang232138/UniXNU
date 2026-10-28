@@ -1,0 +1,3 @@
+# Raw backups stay local and are not included in this repository.
+# Stock firmware V14.0.4.0.SJKCNXM / Android 12; see evidence/partition-backup-hashes.json.
+# Module-level extraction, license/source inventory and full firmware integration remain pending.

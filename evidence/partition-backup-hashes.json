@@ -1,0 +1,32 @@
+[
+  {
+    "partition": "boot",
+    "bytes": 134217728,
+    "sha256": "ba6ec9c505a5ad82730507d5b892f34cfce1c8d8d21d5f476b79f754322329c8"
+  },
+  {
+    "partition": "dtbo",
+    "bytes": 33554432,
+    "sha256": "e5a39c9dccde6f7303badef6884575989707abf4a14fa571080ae7b73a825031"
+  },
+  {
+    "partition": "xbl_4",
+    "bytes": 7340032,
+    "sha256": "f57a7441b91c815ec6592dece1a9eab92218e2ae1423642533f51f2dab06bb97"
+  },
+  {
+    "partition": "xbl_5",
+    "bytes": 7340032,
+    "sha256": "e8e6cf32ef636e387002a37b3968910dafb3dc93491714d6f65d9574ea2d14e3"
+  },
+  {
+    "partition": "xbl_config_4",
+    "bytes": 524288,
+    "sha256": "aaa41157157b3297ad8da3f70077904b7189dfc8e062424f457ad63978fcbf4b"
+  },
+  {
+    "partition": "xbl_config_5",
+    "bytes": 1527808,
+    "sha256": "16141d4d3ad8babe82a1c90441a70c19265f41d7030f974e3aa43fa1d4941c28"
+  }
+]

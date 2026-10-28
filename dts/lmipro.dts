@@ -1,0 +1,21 @@
+/dts-v1/;
+/include/ "sm8250.dtsi"
+
+/ {
+    model = "Redmi K30 Pro Zoom Edition";
+    compatible = "xiaomi,lmipro", "xiaomi,lmi", "qcom,sm8250";
+    // Conservative contiguous 3 GiB window measured in the bootloader FDT.
+    // This is a draft XNU hardware description, not a firmware boot DTB.
+    memory@c0000000 {
+        device_type = "memory";
+        reg = <0 0xc0000000 0 0xc0000000>;
+    };
+};
+&cpu0 { status = "okay"; unixnu,cluster-type = "E"; };
+&cpu1 { status = "disabled"; };
+&cpu2 { status = "disabled"; };
+&cpu3 { status = "disabled"; };
+&cpu4 { status = "disabled"; };
+&cpu5 { status = "disabled"; };
+&cpu6 { status = "disabled"; };
+&cpu7 { status = "disabled"; };
