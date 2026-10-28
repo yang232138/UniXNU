@@ -21,17 +21,17 @@ evidence = [{kind = "host", reference = "https://github.com/yang232138/UniXNU/ac
 
 [[area]]
 id = "firmware"
-status = "planned"
+status = "implemented"
 components = ["DarwinBoot"]
-paths = ["proprietary-files.txt", "scripts/extract-files.py", "scripts/gen-touch-firmware.py"]
-inputs = ["Android boot header v2, 4096-byte pages; target stock XBL modules and firmware DTB are separate inputs."]
-configuration = ["See board.toml, feeds.toml, configs/lmipro_defconfig and dts/lmipro.dts; no board-level peripheral service is claimed."]
-procedure = ["Follow https://unixnu.com/zh/porting/steps and the corresponding subsystem guide before implementation."]
-findings = ["Android boot header v2, 4096-byte pages; target stock XBL modules and firmware DTB are separate inputs."]
-completion = ["Firmware image builds, enters UniXNU, publishes the framebuffer and preserves the documented memory reservations."]
-limits = ["Hardware bring-up remains incomplete. Only host kernel/package compilation is enabled; firmware, payload and phone-image validation remain required before another device test."]
-next_action = ["Review DSC/FDF, FAT/RAM-disk/DarwinBoot and Advanced Logger integration before another device boot."]
-evidence = []
+paths = ["firmware/**", ".github/workflows/uefi.yml", "proprietary-files.txt"]
+inputs = ["Public yang232138/uefi-lmipro overlay at 20e41895a8b24c9b2a32aa3b81947f45280d49f7; Mu-Silicium e51cd877e31c8fbb322032dc4cb6715e83d25ad3; Mu_Basecore cfb93724a06ff86ff5ba971413368a7809ee42a5.", "Target MIUI V14.0.4.0.SJKCNXM XBL ELF SHA256 25821d1f882fef9ec6a4db75f8d0a6ed9d173919e68dda9ed4dc39cf5e1519fc, checked before extraction."]
+configuration = ["board.toml selects lmi config, Platforms/Xiaomi/lmiPkg/lmi.dsc and Build/lmiPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd.", "DSC/FDF contain UniXNU, UniXNUDxe, DarwinBoot, UniXNURamDiskDxe, DiskIo/Partition/FAT/EnglishDxe and AdvancedLogDxe; DXE Advanced Logger collects in RAM."]
+procedure = ["Follow https://unixnu.com/zh/porting/uefi-firmware and /zh/porting/log-capture.", "Extract target XBL modules and uefiplat.cfg, validate unique PE/depex paths and memory-map overlaps, then run ./unixnu build package firmware --uefi ../mu."]
+findings = ["Historical public lmi memory/config maps differ from this handset XBL. Generate them from the hash-checked target uefiplat.cfg; split the unusable DDR prefix around its explicit IPC SHM entry.", "Vendor PE and depex sections are copied byte-for-byte; no vendor code patch is applied. Disable stock LogFS syncing for the temporary test policy."]
+completion = ["FD builds at the configured path and exact 0x300000 size, module inventory and hashes match, then separately verify the UniXNU menu and logs on the device."]
+limits = ["UEFI compilation and runtime remain separate checkpoints. Previous SCM/TZ initialization failures are unresolved on this clean source baseline; do not replay old diagnostic images or claim a working menu.", "No payload, kernel boot, storage initialization or permanent installation is validated by this firmware job. No phone image is automatically booted by CI."]
+next_action = ["Inspect the UEFI job's first failure or validated FD and module manifest; reconcile early DMA memory and inherited TZ state before declaring the image ready for a new phone test."]
+evidence = [{kind = "source", reference = "https://github.com/yang232138/uefi-lmipro/tree/20e41895a8b24c9b2a32aa3b81947f45280d49f7", result = "Public board overlay imported without its binary archive, XBL input, DTB or workflow; integration and target extraction are reviewed separately."}]
 
 [[area]]
 id = "cpu"

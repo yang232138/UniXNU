@@ -1,0 +1,92 @@
+name: Documented lmipro UEFI
+on:
+  push:
+    branches: [lmipro-uefi-documentation-20261028]
+    paths: ['firmware/**', '.github/workflows/uefi.yml', 'board.toml', 'porting.toml', 'unixnu.lock']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: lmipro-uefi-${{ github.ref }}
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: device
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: 120067ccc43ebb5e76ec62c9219a48c897052838
+          path: unixnu
+      - uses: actions/checkout@v4
+        with:
+          repository: Project-Silicium/Mu-Silicium
+          ref: e51cd877e31c8fbb322032dc4cb6715e83d25ad3
+          path: mu
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install UEFI host tools
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang lld llvm nasm uuid-dev acpica-tools device-tree-compiler
+          python3 -m pip install uefi-firmware==1.16
+          mkdir results
+      - name: Initialize the pinned Mu packages
+        run: |
+          set -euo pipefail
+          git -C mu submodule update --init --depth 1 Common/Mu Common/Mu_OEM_Sample
+          git -C mu submodule status > results/mu-submodules.txt
+          git -C mu rev-parse HEAD > results/mu-revision.txt
+      - name: Fetch and verify the target stock XBL
+        env:
+          UNIXNU_SOURCE: ${{ github.workspace }}/unixnu
+          STOCK_OUTPUT: ${{ github.workspace }}/stock-inputs
+          XBL_ONLY: '1'
+        run: |
+          set -euo pipefail
+          python3 device/firmware/extract-stock.py 2>&1 | tee results/stock-extraction.log
+          echo '25821d1f882fef9ec6a4db75f8d0a6ed9d173919e68dda9ed4dc39cf5e1519fc  stock-inputs/xbl_4.elf' | sha256sum -c -
+      - name: Assemble and audit the target board
+        run: |
+          set -euo pipefail
+          python3 device/firmware/prepare.py --mu mu --xbl stock-inputs/xbl_4.elf 2>&1 | tee results/board-preflight.log
+          python3 unixnu/scripts/porting-record.py check --device device
+          cp mu/firmware-inputs.json results/
+          cp mu/Platforms/Xiaomi/lmiPkg/Library/MemoryMapLib/MemoryMapLib.c results/
+          cp mu/Platforms/Xiaomi/lmiPkg/Library/ConfigurationMapLib/ConfigurationMapLib.c results/
+      - name: Build the EFI package and UEFI through UniXNU
+        working-directory: unixnu
+        run: |
+          set -euo pipefail
+          ./unixnu defconfig lmipro_defconfig -D ../device
+          ./unixnu build package firmware --uefi ../mu 2>&1 | tee ../results/uefi-build.log
+          ./unixnu status --json > ../results/status.json
+      - name: Verify the firmware volume
+        run: |
+          set -euo pipefail
+          python3 device/firmware/verify.py --fd mu/Build/lmiPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd --manifest mu/firmware-inputs.json --output results/fd-verification.json
+          cp mu/Build/lmiPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd results/
+          sha256sum results/SILICIUM_UEFI.fd > results/SHA256SUMS
+          echo 'UEFI FD and required-module checks passed. Device runtime is not verified.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Collect build diagnostics
+        if: always()
+        run: |
+          mkdir -p results/logs
+          find unixnu/out -type f -name '*.log' -exec cp {} results/logs/ \; 2>/dev/null || true
+          if [ -f device/unixnu.lock ]; then cp device/unixnu.lock results/; fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lmipro-documented-uefi
+          path: results/
+          if-no-files-found: error
+          retention-days: 14

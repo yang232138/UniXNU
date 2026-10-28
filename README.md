@@ -26,3 +26,7 @@ Review the resolved components, source pins and patch order; commit the generate
 ## Kernel and package CI
 
 The macOS job follows the pinned upstream build commands and selected profile. It checks Xcode and the iPhoneOS SDK, resolves sources, fetches the profile IPSW members, builds the prelinked kernel, then builds the EFI package. It publishes text logs only, following the upstream macOS workflow. No firmware, payload or device boot is attempted by this job.
+
+## Independent UEFI build
+
+The firmware job follows the [UEFI guide](https://unixnu.com/zh/porting/uefi-firmware) using the pinned public lmi board overlay, target stock XBL, and DXE Advanced Logger/QR export. See firmware/README.md. It runs build package followed by build firmware; XNU compilation is a separate checkpoint. The current kernel run 40665400238 failed before compilation because the upstream zzz-boot-progress.patch does not apply to bsd_init.c. No kernel or phone boot success is claimed.

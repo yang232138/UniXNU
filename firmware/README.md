@@ -1,0 +1,31 @@
+# Documented UEFI build
+
+Reference: https://unixnu.com/zh/porting/uefi-firmware
+
+The public board overlay is pinned at yang232138/uefi-lmipro
+20e41895a8b24c9b2a32aa3b81947f45280d49f7. Only Platforms and Resources/Configs
+source files are imported; the legacy workflow, binaries, XBL, DTB and BootShim
+are not used. Upstream Mu-Silicium e51cd877e31c8fbb322032dc4cb6715e83d25ad3
+provides the shared source and BootShim. Mu_Basecore is fixed by unixnu.lock.
+Original file license headers remain in place.
+
+The target XBL hash is checked before extraction. All referenced vendor PE and
+DEPEX sections remain byte-identical, with a distinct path for every module.
+Memory and numeric configuration come from that XBL uefiplat.cfg, replacing the
+historical board map. No guessed free RAM, borrowed panel configuration, fixed
+logger address or vendor binary patch is added. The DXE logger allocates a 1 MiB
+reserved buffer through UEFI services; SEC logs still use the stock framebuffer.
+LogFS syncing is disabled. QR export is provided by AdvancedLogDxe.
+
+From the pinned UniXNU checkout, after assembling the Mu tree and running the
+extract/prepare steps shown in .github/workflows/uefi.yml:
+
+```sh
+./unixnu defconfig lmipro_defconfig -D ../device
+./unixnu build package firmware --uefi ../mu
+```
+
+This independent firmware job does not require a successful XNU compilation.
+It publishes the FD, module hashes and text logs. A valid FD is not proof that
+SCM/TZ, the menu or XNU works on this handset. Review runtime memory/TZ handoff
+before packaging a fresh temporary-boot image; never send a raw FD to fastboot.
