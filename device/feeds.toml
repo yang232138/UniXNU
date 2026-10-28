@@ -1,0 +1,5 @@
+[[source]]
+name = "sm8250"
+kind = "soc"
+git = "https://github.com/FFT-infra/UniXNU-sm8250-common.git"
+commit = "a6e7e36caab58f5b9a5625dbdb8da2bf290fa5cc"
