@@ -1,0 +1,99 @@
+name: Documented lmipro kernel and package
+on:
+  push:
+    branches: [lmipro-documentation-20261028]
+    paths: ['.github/workflows/kernel.yml', 'board.toml', 'configs/**', 'dts/**', 'patches/**', 'feeds.toml', 'unixnu.lock']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: lmipro-kernel-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
+  HOMEBREW_NO_ENV_HINTS: 1
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 360
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      UNIXNU_DEVICE: ${{ github.workspace }}
+      GITHUB_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: 120067ccc43ebb5e76ec62c9219a48c897052838
+          path: tools
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Check runner inputs
+        run: |
+          set -euo pipefail
+          if [ ! -d "$DEVELOPER_DIR" ]; then
+            echo 'Required Xcode is missing; installed Xcode paths:'
+            printf '%s\n' /Applications/Xcode_*.app
+            exit 1
+          fi
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          python3 tools/scripts/porting-record.py check --device .
+      - name: Install documented host tools
+        run: |
+          brew install llvm lld mtools dtc
+          if ! command -v unifdef >/dev/null; then
+            brew install unifdef
+            echo "$(brew --prefix unifdef)/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Resolve configuration and OS inputs
+        run: |
+          set -euo pipefail
+          cd tools
+          ./unixnu defconfig lmipro_defconfig
+          ./unixnu fetch
+          ./unixnu status --json
+          soc_dtsi=$(find out/feeds -path "*/dts/sm8250.dtsi" -print -quit)
+          test -n "$soc_dtsi"
+          dtc -I dts -O dtb -i "$(dirname "$soc_dtsi")" -o "$RUNNER_TEMP/lmipro-hardware.dtb" "$GITHUB_WORKSPACE/dts/lmipro.dts"
+          ./unixnu ipsw info
+          ./unixnu ipsw fetch
+          ./unixnu tree
+      - name: Compile and prelink XNU
+        run: |
+          cd tools
+          ./unixnu build kernel
+      - name: Build EFI package
+        run: |
+          cd tools
+          ./unixnu build package
+      - name: Collect text diagnostics
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          dest=Path(os.environ['RUNNER_TEMP'])/'lmipro-public-logs'
+          dest.mkdir(exist_ok=True)
+          for path in Path('tools/out').glob('lmipro/*/*/logs/*.log'):
+              data=path.read_bytes()
+              if b'\0' in data:continue
+              text=data.decode('utf-8','replace')
+              token=os.environ.get('GITHUB_TOKEN','')
+              if token:text=text.replace(token,'***')
+              text=re.sub(r'https?://[^\s]+[?&](?:token|sig|signature|key)=[^\s]+','***',text,flags=re.I)
+              (dest/path.name).write_text(text)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lmipro-kernel-package-logs
+          path: ${{ runner.temp }}/lmipro-public-logs/*.log
+          if-no-files-found: warn
+          retention-days: 7

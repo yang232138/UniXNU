@@ -1,7 +1,7 @@
 schema_version = 2
 
 [board]
-example = true # Keep build guard until firmware integration and required inputs pass review.
+example = false # Concrete device inputs reviewed for kernel/package host checks; firmware and payload remain separate gates.
 name = "lmipro"
 soc = "SM8250"
 soc_source = "sm8250"
@@ -22,14 +22,15 @@ source = "device:dts/lmipro.dts"
 include_dirs = ["soc:dts"]
 
 [firmware]
-# Replace with this board's UEFI configuration and paths.
+# Firmware platform contract; a reviewed matching UEFI checkout is still required.
 config = "lmipro"
 dsc = "Platforms/Xiaomi/lmiproPkg/lmipro.dsc"
 fd = "Build/lmiproPkg/{target}_CLANGPDB/FV/SILICIUM_UEFI.fd"
-packages = ["{uefi}", "{tree}/package", "{tree}/drivers/DarwinBoot", "{edk2}"]
+packages = ["{uefi}", "{uefi}/Platforms/Xiaomi", "{uefi}/Common/Mu", "{uefi}/Common/Mu_OEM_Sample", "{uefi}/Silicon/Qualcomm", "{uefi}/Silicon/Silicium", "{tree}/package", "{tree}/drivers/DarwinBoot", "{edk2}"]
 
 [firmware.defines]
-DEVICE_MODEL = "lmipro"
+DEVICE_MODEL = "0"
+ENABLE_SECUREBOOT = "0"
 
 [payload]
 volume = "LMIPRO"

@@ -1,7 +1,7 @@
 # Redmi K30 Pro Zoom Edition (lmipro)
 
 Configuration baseline following [the UniXNU porting procedure](https://unixnu.com/zh/porting/steps).
-This branch does not carry the previous experimental firmware patch script. `board.example = true` is retained because firmware integration, peripheral services and OS inputs remain incomplete.
+This branch does not carry the previous experimental firmware patch script. Concrete kernel inputs have been reviewed and `board.example = false` permits the documented kernel/package host checks. Firmware integration, peripheral services and payload inputs remain incomplete; this does not authorize a phone image to be called validated.
 
 ## Current evidence
 
@@ -21,4 +21,8 @@ Run inside the pinned UniXNU source checkout:
 python3 scripts/porting-record.py check --device ../device
 ```
 
-Review the resolved components, source pins and patch order; commit the generated `unixnu.lock`. Complete the firmware DSC/FDF and logging review, the hardware descriptions and required external OS inputs before removing the example guard. Subsequent stages follow `build kernel`, `build package`, `build firmware`, `build payload`, `bootimg`, with separate device evidence for every checkpoint.
+Review the resolved components, source pins and patch order; commit the generated `unixnu.lock`. Complete the firmware DSC/FDF and logging review, hardware handoff and required external payload inputs before building or testing a phone image. Subsequent stages follow `build kernel`, `build package`, `build firmware`, `build payload`, `bootimg`, with separate device evidence for every checkpoint.
+
+## Kernel and package CI
+
+The macOS job follows the pinned upstream build commands and selected profile. It checks Xcode and the iPhoneOS SDK, resolves sources, fetches the profile IPSW members, builds the prelinked kernel, then builds the EFI package. It publishes text logs only, following the upstream macOS workflow. No firmware, payload or device boot is attempted by this job.
