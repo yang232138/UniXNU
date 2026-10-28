@@ -4,6 +4,26 @@ from pathlib import Path
 from uefi_firmware.uefi import FirmwareVolume,FirmwareFile,FirmwareFileSystemSection
 ap=argparse.ArgumentParser();ap.add_argument('--mu',type=Path,required=True);ap.add_argument('--xbl',type=Path,required=True)
 a=ap.parse_args();mu=a.mu.resolve()
+# Diagnostic-only screen hold: retain the complete assertion line before the
+# original DebugAssert handling proceeds. Do not change error checks or status.
+fb_source=mu/'Silicon/Silicium/SiliciumPkg/Library/FrameBufferSerialPortLib/FrameBufferSerialPortLib.c'
+fb=fb_source.read_text()
+write_anchor='  // Get Frame Buffer Memory\n  Status = GetFrameBufferMemory (&FbBase, &FbLength);'
+hold_code='''  BOOLEAN HoldAssertion = FALSE;
+  for (UINTN Index = 0; Index + 7 <= NumberOfBytes; Index++) {
+    if (CompareMem (Buffer + Index, "ASSERT ", 7) == 0) {
+      HoldAssertion = TRUE;
+      break;
+    }
+  }
+
+'''
+assert fb.count(write_anchor)==1, 'Unexpected framebuffer writer source'
+fb=fb.replace(write_anchor,hold_code+write_anchor)
+flush_anchor='  WriteBackInvalidateDataCacheRange ((VOID *)FbBase, FbLength);\n\n  return NumberOfBytes;'
+assert fb.count(flush_anchor)==1, 'Unexpected framebuffer flush source'
+fb=fb.replace(flush_anchor,'  WriteBackInvalidateDataCacheRange ((VOID *)FbBase, FbLength);\n\n  if (HoldAssertion) {\n    MicroSecondDelay (20000000);\n  }\n\n  return NumberOfBytes;')
+fb_source.write_text(fb)
 def walk(o):
     if o is not None:
         yield o
