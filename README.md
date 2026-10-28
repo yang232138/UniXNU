@@ -47,3 +47,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 ## License
 
 BSD-2-Clause-Patent. See [LICENSE](LICENSE).
+
+<!-- fork: register workflows for local device builds -->
