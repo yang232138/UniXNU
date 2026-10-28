@@ -7,7 +7,7 @@ summary = "Redmi K30 Pro Zoom Edition; documentation-led configuration baseline.
 
 [[area]]
 id = "configuration"
-status = "planned"
+status = "host-verified"
 components = ["ArmDTPlatform", "ArmCpu", "SoftwareAES", "XnuPrelink", "DarwinBoot"]
 paths = ["board.toml", "feeds.toml", "configs/**", "AGENTS.md", ".github/**", ".gitignore", "local.toml.example", "evidence/**"]
 inputs = ["ARM64, FFT-infra SM8250 at a6e7e36caab58f5b9a5625dbdb8da2bf290fa5cc and iPadOS 17.7.11/21H461."]
@@ -17,7 +17,7 @@ findings = ["ARM64, FFT-infra SM8250 at a6e7e36caab58f5b9a5625dbdb8da2bf290fa5cc
 completion = ["All source pins resolve; every selected component has a record; status shows the intended overrides and patch order."]
 limits = ["This baseline is incomplete. board.example=true prevents generation of a purported usable image."]
 next_action = ["Complete the documented defconfig, fetch, status and tree checks and commit the generated lock."]
-evidence = []
+evidence = [{kind = "host", reference = "https://github.com/yang232138/UniXNU/actions/runs/40663220790", result = "13 structured areas checked; defconfig/fetch/status/tree passed; resolved ARM64, SM8250 and ipados-17.7.11-21H461 with the selected five components.", command = "./unixnu defconfig lmipro_defconfig -D DEVICE; ./unixnu fetch; ./unixnu status --json; ./unixnu tree; python3 scripts/porting-record.py check --device DEVICE", revision = "0c78aed2dfe600981fa1ee089b8a67e371c63a7c"}]
 
 [[area]]
 id = "firmware"
