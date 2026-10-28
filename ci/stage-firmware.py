@@ -58,16 +58,21 @@ for rel in needed:
     if name not in catalog:raise RuntimeError(f'Missing stock XBL module: {name}')
     f,ss=catalog[name];dest=mu/rel;dest.parent.mkdir(parents=True,exist_ok=True)
     pe=next(x.data for x in ss if x.type in (0x10,0x12))
-    (dest.parent/'module.efi').write_bytes(pe)
+    binary=dest.parent/(stem+'.efi')
+    binary.write_bytes(pe)
     depex=next((x.data for x in ss if x.type==0x13),None)
     module_type='DXE_RUNTIME_DRIVER' if f.type==9 else 'DXE_DRIVER'
     guid=str(uuid.UUID(bytes_le=f.guid))
-    inf=f'[Defines]\n INF_VERSION = 0x00010017\n BASE_NAME = {stem}\n FILE_GUID = {guid}\n MODULE_TYPE = {module_type}\n VERSION_STRING = 1.0\n\n[Binaries.AARCH64]\n PE32|module.efi|*\n'
+    inf=f'[Defines]\n INF_VERSION = 0x00010017\n BASE_NAME = {stem}\n FILE_GUID = {guid}\n MODULE_TYPE = {module_type}\n VERSION_STRING = 1.0\n\n[Binaries.AARCH64]\n PE32|{binary.name}|*\n'
     if depex:
-        (dest.parent/'module.depex').write_bytes(depex);inf+=' DXE_DEPEX|module.depex|*\n'
+        dependency=dest.parent/(stem+'.depex')
+        dependency.write_bytes(depex);inf+=f' DXE_DEPEX|{dependency.name}|*\n'
     dest.write_text(inf)
     s+='\n[Components]\n  '+rel+'\n'
-    manifest.append(dict(name=name,guid=guid,sha256=hashlib.sha256(pe).hexdigest()))
+    manifest.append(dict(name=name,guid=guid,binary=str(binary.relative_to(mu)),sha256=hashlib.sha256(pe).hexdigest()))
+assert len({record['binary'] for record in manifest})==len(manifest), 'Vendor output path collision'
+for record in manifest:
+    assert hashlib.sha256((mu/record['binary']).read_bytes()).hexdigest()==record['sha256'], f"Vendor binary overwritten: {record['name']}"
 dsc.write_text(s)
 raw=[]
 for name,(f,ss) in catalog.items():
