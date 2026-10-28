@@ -30,3 +30,7 @@ The macOS job follows the pinned upstream build commands and selected profile. I
 ## Independent UEFI build
 
 The firmware job follows the [UEFI guide](https://unixnu.com/zh/porting/uefi-firmware) using the pinned public lmi board overlay, target stock XBL, and DXE Advanced Logger/QR export. See firmware/README.md. It runs build package followed by build firmware; XNU compilation is a separate checkpoint. The current kernel run 40665400238 failed before compilation because the upstream zzz-boot-progress.patch does not apply to bsd_init.c. No kernel or phone boot success is claimed.
+
+## Latest verified output
+
+Run [40678356756](https://github.com/yang232138/UniXNU/actions/runs/40678356756) passed EFI package, firmware inventory and Android-v2 boot-image checks. The UEFI-only boot.img is 2142208 bytes; SHA256 `02b20c5b923bd7ead4566aafa5f3302dfccc18489b14735343a6b0fce17f8453`. The real-device temporary boot displayed many log lines and automatically returned to Android. The menu is not verified. Obtain the final firmware error before further runtime changes.

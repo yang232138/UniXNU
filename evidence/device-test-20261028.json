@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-28",
+  "build_run": 40678356756,
+  "source_revision": "04c09810fcb2e11d62c53983cecc8fffef411e73",
+  "boot_image_sha256": "02b20c5b923bd7ead4566aafa5f3302dfccc18489b14735343a6b0fce17f8453",
+  "fastboot_product": "lmi",
+  "fastboot_boot_command_accepted": true,
+  "partitions_flashed": false,
+  "userdata_erased": false,
+  "user_observation": "Many firmware log lines appeared, then the phone automatically returned to Android.",
+  "uefi_menu_confirmed": false,
+  "runtime_result": "failed before a usable menu was confirmed",
+  "android_boot_reason": "cold",
+  "pstore_limit": "Available console data is an older Android kernel log, including long-press reset messages. It does not identify the last UEFI operation and is not evidence of this UEFI failure cause.",
+  "next_required_evidence": "Final pre-reboot UEFI error from UART or a video frame, following the documented pre-menu log-capture procedure."
+}
