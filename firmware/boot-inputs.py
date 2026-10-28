@@ -19,8 +19,10 @@ def replace_once(text, old, new):
     return text.replace(old, new, 1)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--boot', type=Path, required=True)
-parser.add_argument('--dtbo', type=Path, required=True)
+parser.add_argument('--boot', type=Path)
+parser.add_argument('--base-dtb', type=Path)
+parser.add_argument('--overlay', type=Path)
+parser.add_argument('--dtbo', type=Path)
 parser.add_argument('--unixnu', type=Path, required=True)
 parser.add_argument('--mu', type=Path, required=True)
 parser.add_argument('--output', type=Path, required=True)
@@ -30,43 +32,60 @@ from unixnu.devicetree import read_fdt
 
 out = args.output.resolve()
 out.mkdir(parents=True, exist_ok=True)
-boot = args.boot.read_bytes()
-assert boot[:8] == b'ANDROID!'
-k, ka, r, ra, second, _, tags, page, version, _ = struct.unpack_from('<10I', boot, 8)
-assert (ka, ra, tags, page, version) == (0x8000, 0x1000000, 0x100, 4096, 2)
-dtb_size, dtb_addr = struct.unpack_from('<IQ', boot, 1648)
-assert dtb_addr == 0x1f00000
-recovery_dtbo_size = struct.unpack_from('<I', boot, 1632)[0]
-align = lambda n: (n + page - 1) // page * page
-start = page + align(k) + align(r) + align(second) + align(recovery_dtbo_size)
-region = boot[start:start+dtb_size]
-assert len(region) == dtb_size
-bases = []
-pos = 0
-while pos < len(region):
-    if region[pos:pos+4] != b'\xd0\x0d\xfe\xed':
-        assert not region[pos:].strip(b'\0'), 'unexpected bytes between stock DTBs'
-        break
-    size = struct.unpack_from('>I', region, pos+4)[0]
-    data = region[pos:pos+size]
-    node = read_fdt(data)
-    cells = node.cells('qcom,msm-id')
-    if any(cells[i:i+2] == [0x164, 0x20001] for i in range(0, len(cells), 2)):
-        bases.append(data)
-    pos += size
-assert len(bases) == 1, f'expected one matching stock base DTB, found {len(bases)}'
-(out / 'stock-base.dtb').write_bytes(bases[0])
+def read_stock_inputs():
+    boot = args.boot.read_bytes()
+    assert boot[:8] == b'ANDROID!'
+    k, ka, r, ra, second, _, tags, page, version, _ = struct.unpack_from('<10I', boot, 8)
+    assert (ka, ra, tags, page, version) == (0x8000, 0x1000000, 0x100, 4096, 2)
+    dtb_size, dtb_addr = struct.unpack_from('<IQ', boot, 1648)
+    assert dtb_addr == 0x1f00000
+    recovery_dtbo_size = struct.unpack_from('<I', boot, 1632)[0]
+    align = lambda n: (n + page - 1) // page * page
+    start = page + align(k) + align(r) + align(second) + align(recovery_dtbo_size)
+    region = boot[start:start+dtb_size]
+    assert len(region) == dtb_size
+    bases = []
+    pos = 0
+    while pos < len(region):
+        if region[pos:pos+4] != b'\xd0\x0d\xfe\xed':
+            assert not region[pos:].strip(b'\0'), 'unexpected bytes between stock DTBs'
+            break
+        size = struct.unpack_from('>I', region, pos+4)[0]
+        data = region[pos:pos+size]
+        node = read_fdt(data)
+        cells = node.cells('qcom,msm-id')
+        if any(cells[i:i+2] == [0x164, 0x20001] for i in range(0, len(cells), 2)):
+            bases.append(data)
+        pos += size
+    assert len(bases) == 1, f'expected one matching stock base DTB, found {len(bases)}'
+    (out / 'stock-base.dtb').write_bytes(bases[0])
+    
+    dtbo = args.dtbo.read_bytes()
+    magic, total, header_size, entry_size, count, entries_offset, _, table_version = struct.unpack_from('>8I', dtbo)
+    assert magic == 0xd7b7ab1e and entry_size >= 32 and count > 8 and total <= len(dtbo)
+    size, offset = struct.unpack_from('>2I', dtbo, entries_offset + 8 * entry_size)
+    overlay = dtbo[offset:offset+size]
+    ov = read_fdt(overlay)
+    assert ov.cells('qcom,board-id') == [0x25, 0]
+    (out / 'selected-overlay.dtbo').write_bytes(overlay)
+    return bases, overlay, ov
 
-dtbo = args.dtbo.read_bytes()
-magic, total, header_size, entry_size, count, entries_offset, _, table_version = struct.unpack_from('>8I', dtbo)
-assert magic == 0xd7b7ab1e and entry_size >= 32 and count > 8 and total <= len(dtbo)
-size, offset = struct.unpack_from('>2I', dtbo, entries_offset + 8 * entry_size)
-overlay = dtbo[offset:offset+size]
-ov = read_fdt(overlay)
+if args.base_dtb or args.overlay:
+    assert args.base_dtb and args.overlay
+    bases = [args.base_dtb.read_bytes()]
+    overlay = args.overlay.read_bytes()
+    ov = read_fdt(overlay)
+else:
+    assert args.boot and args.dtbo
+    bases, overlay, ov = read_stock_inputs()
+assert hashlib.sha256(bases[0]).hexdigest() == 'bb52bbbf97601450dbdca9a020145ebe7ea816a94418155919c139ba27d39529'
+assert hashlib.sha256(overlay).hexdigest() == '1ff8c25f571f615e6370a30b71a1626dfe7bdccc9616b60e05071b541e56ff54'
 assert ov.cells('qcom,board-id') == [0x25, 0]
+(out / 'stock-base.dtb').write_bytes(bases[0])
 (out / 'selected-overlay.dtbo').write_bytes(overlay)
+
 dest = out / 'firmware.dtb'
-library = ctypes.util.find_library('fdt')
+library = os.environ.get('LIBFDT_PATH') or ctypes.util.find_library('fdt')
 if os.name == 'nt' and not library:
     os.add_dll_directory('C:/msys64/ucrt64/bin')
     library = 'C:/msys64/ucrt64/bin/libfdt-1.dll'
@@ -115,5 +134,5 @@ s = replace_once(s, 'def verify(path, combined, tree, ramdisk_path, image):', 'd
 s = replace_once(s, 'unpacker.unused_data != tree:', "unpacker.unused_data != (tree if append_dtb else b''):")
 s = replace_once(s, "return {'kernel_sha256':", "if not append_dtb:\n        dtb_size, dtb_address = struct.unpack_from('<IQ', data, 1648)\n        dtb_start = start + page * (-(-ramdisk_size // page))\n        if dtb_size != len(tree) or dtb_address != image['base'] + image['dtb_offset'] or data[dtb_start:dtb_start+dtb_size] != tree:\n            raise Error('Android-v2 DTB section does not round-trip')\n    return {'dtb_placement': 'appended' if append_dtb else 'header-v2', 'kernel_sha256':")
 driver.write_text(s, newline='\n')
-print('Validated target DTBO index 8, firmware DTB hash and original Android-v2 load parameters')
+print('Validated hash-pinned target tree inputs, DTBO index 8 and resulting firmware DTB')
 print('Prepared strict shim header and Android-v2 DTB-section support for unixnu bootimg')

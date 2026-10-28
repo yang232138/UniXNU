@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: lmipro-uefi-${{ github.ref }}
   cancel-in-progress: false
@@ -33,13 +34,31 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - uses: actions/checkout@v4
+        with:
+          repository: dgibson/dtc
+          ref: 8f48565e5cfedc74d3f7512f1e0188e9d85dc1de
+          path: dtc
+      - name: Reuse verified stock tree inputs from this porting session
+        uses: actions/download-artifact@v4
+        with:
+          name: lmipro-documented-uefi
+          run-id: 40671017967
+          github-token: ${{ github.token }}
+          path: stock-tree-inputs
       - name: Install UEFI host tools
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends clang lld llvm nasm uuid-dev acpica-tools device-tree-compiler
+          sudo apt-get install -y --no-install-recommends clang lld llvm nasm uuid-dev acpica-tools device-tree-compiler flex bison
           python3 -m pip install uefi-firmware==1.16
           mkdir results
+          make -C dtc -j2 libfdt
+          git -C dtc rev-parse HEAD > results/libfdt-revision.txt
+      - uses: actions/cache@v4
+        with:
+          path: stock-inputs
+          key: lmipro-miui-V14.0.4.0-xbl-only-v1
       - name: Initialize the pinned Mu packages
         run: |
           set -euo pipefail
@@ -50,7 +69,7 @@ jobs:
         env:
           UNIXNU_SOURCE: ${{ github.workspace }}/unixnu
           STOCK_OUTPUT: ${{ github.workspace }}/stock-inputs
-          BOOT_INPUTS: '1'
+          XBL_ONLY: '1'
         run: |
           set -euo pipefail
           python3 device/firmware/extract-stock.py 2>&1 | tee results/stock-extraction.log
@@ -64,9 +83,11 @@ jobs:
           cp mu/Platforms/Xiaomi/lmiPkg/Library/MemoryMapLib/MemoryMapLib.c results/
           cp mu/Platforms/Xiaomi/lmiPkg/Library/ConfigurationMapLib/ConfigurationMapLib.c results/
       - name: Prepare and verify this handset's boot-image inputs
+        env:
+          LIBFDT_PATH: ${{ github.workspace }}/dtc/libfdt/libfdt.so
         run: |
           set -euo pipefail
-          python3 device/firmware/boot-inputs.py --boot stock-inputs/boot.img --dtbo stock-inputs/dtbo.img --mu mu --unixnu unixnu --output results 2>&1 | tee results/boot-inputs.log
+          python3 device/firmware/boot-inputs.py --base-dtb stock-tree-inputs/stock-base.dtb --overlay stock-tree-inputs/selected-overlay.dtbo --mu mu --unixnu unixnu --output results 2>&1 | tee results/boot-inputs.log
       - name: Build the EFI package and UEFI through UniXNU
         working-directory: unixnu
         run: |
@@ -93,6 +114,10 @@ jobs:
         run: |
           mkdir -p results/logs
           find unixnu/out -type f -name '*.log' -exec cp {} results/logs/ \; 2>/dev/null || true
+          if [ -f mu/Build/lmiPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd ]; then
+            mkdir -p results/diagnostics
+            cp mu/Build/lmiPkg/DEBUG_CLANGPDB/FV/SILICIUM_UEFI.fd results/diagnostics/unreviewed-firmware.fd
+          fi
           if [ -f device/unixnu.lock ]; then cp device/unixnu.lock results/; fi
       - uses: actions/upload-artifact@v4
         if: always()
