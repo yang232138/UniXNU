@@ -1,0 +1,46 @@
+name: K30 Pro fresh bootstrap
+on:
+  push:
+    branches: [k30pro-fresh-20261028]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y clang lld llvm nasm uuid-dev build-essential device-tree-compiler mtools
+      - name: Fetch pinned upstream sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init upstream
+          git -C upstream remote add origin https://github.com/UniXNU/UniXNU.git
+          git -C upstream fetch --depth 1 origin 120067ccc43ebb5e76ec62c9219a48c897052838
+          git -C upstream checkout --detach FETCH_HEAD
+          git init edk2
+          git -C edk2 remote add origin https://github.com/microsoft/mu_basecore.git
+          git -C edk2 fetch --depth 1 origin cfb93724a06ff86ff5ba971413368a7809ee42a5
+          git -C edk2 checkout --detach FETCH_HEAD
+          git -C edk2 submodule update --init --depth 1 MdePkg/Library/BaseFdtLib/libfdt MdePkg/Library/MipiSysTLib/mipisyst BaseTools/Source/C/BrotliCompress/brotli
+      - name: Build AArch64 UniXNU package
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p results
+          export UNIXNU_EDK2="$GITHUB_WORKSPACE/edk2"
+          export UNIXNU_BUILD_DIR="$GITHUB_WORKSPACE/package-build"
+          export CLANG_BIN=/usr/bin/
+          export JOBS=4
+          bash upstream/package/build.sh -b DEBUG -t CLANGPDB 2>&1 | tee results/package.log
+          cp package-build/Build/Out/AARCH64-DEBUG/*.efi results/
+          sha256sum results/*.efi > results/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lmipro-bootstrap-package
+          path: results/
+          retention-days: 14
