@@ -9,7 +9,7 @@
  
  #include <mach/exclaves.h>
  
-@@ -7013,8 +7013,256 @@
+@@ -7013,8 +7013,260 @@
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -280,7 +280,7 @@
  
  	/*
  	 * So that init task is set with uid,gid 0 token
-@@ -7148,6 +7391,15 @@
+@@ -7148,6 +7391,23 @@
  	mach_vm_size_t map_page_size = vm_map_page_size(map);
  
  	(void) mach_vm_allocate_kernel(map, &scratch_addr, map_page_size, VM_FLAGS_ANYWHERE, VM_KERN_MEMORY_NONE);
