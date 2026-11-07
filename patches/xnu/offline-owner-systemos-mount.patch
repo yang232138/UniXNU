@@ -9,7 +9,7 @@
  
  #include <mach/exclaves.h>
  
-@@ -7013,8 +7013,280 @@
+@@ -7013,8 +7013,287 @@
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -39,6 +39,7 @@
 +volatile int native_owner_cache_native_union = 0;
 +volatile dev_t native_owner_cache_selected_device = NODEV;
 +volatile int native_owner_cache_dir_status = -1;
++volatile int native_owner_cache_file_status = -1;
 +volatile dev_t native_owner_cache_mounted_device = NODEV;
 +volatile dev_t native_owner_cache_root_device = NODEV;
 +volatile uint64_t native_owner_cache_root_flags = 0;
@@ -161,6 +162,14 @@
 +		if (cache_dir) vnode_put(cache_dir);
 +		native_owner_cache_dir_status = dir_error;
 +		if (dir_error) panic("owner cache dir missing: %d", dir_error);
++	}
++	{
++		vnode_t cache_file = NULLVP;
++		int file_error = vnode_lookup("/private/preboot/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64",
++		    0, &cache_file, vfs_context_kernel());
++		if (cache_file) vnode_put(cache_file);
++		native_owner_cache_file_status = file_error;
++		if (file_error) panic("owner cache file missing: %d", file_error);
 +	}
 +#else
 +	*envp = USER_ADDR_NULL;
@@ -291,20 +300,12 @@
  {
  	int retval[2];
  	int error;
-@@ -7086,7 +7329,15 @@
+@@ -7086,7 +7329,7 @@
  	 */
  	init_exec_args.fname = argv0;
  	init_exec_args.argp = scratch_addr;
 -	init_exec_args.envp = USER_ADDR_NULL;
 +	init_exec_args.envp = envp;
-+	if (envp) {
-+		user_addr_t first = 0;
-+		char env_text[96] = {0};
-+		if (copyin(envp, &first, sizeof(first)) == 0 && first &&
-+		    copyin(first, env_text, sizeof(env_text) - 1) == 0)
-+			panic("owner envp[0]: %s", env_text);
-+		panic("owner envp: %llx", (unsigned long long)envp);
-+	}
  
  	/*
  	 * So that init task is set with uid,gid 0 token
