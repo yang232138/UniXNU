@@ -1,6 +1,6 @@
 --- a/bsd/kern/kern_newsysctl.c
 +++ b/bsd/kern/kern_newsysctl.c
-@@ -1606,4 +1606,45 @@
+@@ -1606,4 +1606,38 @@
  	/* Get the read lock on the geometry */
  	lck_rw_lock_shared(&sysctl_geometry_lock);
  
@@ -34,15 +34,41 @@
 +			}
 +		}
 +		lck_rw_done(&sysctl_geometry_lock);
-+		{
-+			static int native_preboot_role_hits;
-+			if (native_preboot_role_hits < 4) {
-+				native_preboot_role_hits++;
-+				printf("native: preboot role query oldlen=%lu err=%d\n",
-+				    (unsigned long)req->oldlen, error);
-+			}
-+		}
++		printf("native: preboot role query by name err=%d\n", error);
 +		return error;
 +	}
 +
  	if (string_is_canonical) {
+@@ -1681,2 +1681,32 @@
+ found:
+ 
++	/*
++	 * Cover the oid lookup path as well: libc's sysctlbyname resolves
++	 * the name to an oid first on some platforms, so answer the apfs
++	 * edt_fstab node from here with the same preboot role entry.
++	 */
++	if (oid->oid_name != NULL && strcmp(oid->oid_name, "edt_fstab") == 0) {
++		struct {
++			uint8_t reserved[0x20];
++			char mountpoint[0xC8];
++			uint32_t role;
++		} __attribute__((__packed__)) entry;
++		memset(&entry, 0, sizeof(entry));
++		strlcpy(entry.mountpoint, "/private/preboot", sizeof(entry.mountpoint));
++		entry.role = 0x10;
++		if (req->oldptr == 0) {
++			req->oldidx = sizeof(entry);
++			error = 0;
++		} else if (req->oldlen < sizeof(entry)) {
++			error = ENOMEM;
++		} else {
++			error = copyout(&entry, req->oldptr, sizeof(entry));
++			if (error == 0) {
++				req->oldidx = sizeof(entry);
++			}
++		}
++		lck_rw_done(&sysctl_geometry_lock);
++		printf("native: edt_fstab oid hit err=%d\n", error);
++		return error;
++	}
++
