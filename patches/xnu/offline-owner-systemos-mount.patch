@@ -9,7 +9,7 @@
  
  #include <mach/exclaves.h>
  
-@@ -7013,8 +7013,281 @@
+@@ -7013,8 +7013,280 @@
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -162,7 +162,6 @@
 +		native_owner_cache_dir_status = dir_error;
 +		if (dir_error) panic("owner cache dir missing: %d", dir_error);
 +	}
-+	panic("owner env: %s", (const char *)(uintptr_t)(scratch + 0x400));
 +#else
 +	*envp = USER_ADDR_NULL;
 +#endif
@@ -292,12 +291,20 @@
  {
  	int retval[2];
  	int error;
-@@ -7086,7 +7329,7 @@
+@@ -7086,7 +7329,13 @@
  	 */
  	init_exec_args.fname = argv0;
  	init_exec_args.argp = scratch_addr;
 -	init_exec_args.envp = USER_ADDR_NULL;
 +	init_exec_args.envp = envp;
++	if (envp) {
++		user_addr_t first = 0;
++		char env_text[96] = {0};
++		if (copyin(envp, &first, sizeof(first)) == 0 && first &&
++		    copyin(first, env_text, sizeof(env_text) - 1) == 0)
++			panic("owner envp[0]: %s", env_text);
++		panic("owner envp: %llx", (unsigned long long)envp);
++	}
  
  	/*
  	 * So that init task is set with uid,gid 0 token
