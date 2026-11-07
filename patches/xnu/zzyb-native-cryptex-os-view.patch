@@ -1,7 +1,7 @@
 diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 --- a/bsd/kern/kern_exec.c
 +++ b/bsd/kern/kern_exec.c
-@@ -7483,7 +7483,162 @@
+@@ -7483,7 +7483,167 @@
  			native_gpu_addon_written++;
  		}
  		at += (packed + 7) & ~7ULL;
@@ -52,6 +52,10 @@ diff --git a/bsd/kern/kern_exec.c b/bsd/kern/kern_exec.c
 +		return;
 +	}
 +	native_cryptex_os_stage = 2;
++	if ((error = native_cryptex_os_bind(p, scratch, "/private/var/ngpu/preboot/System", "/System", MNT_UNION))) {
++		native_cryptex_os_status = error;
++		return;
++	}
 +	if ((error = native_cryptex_os_bind(p, scratch, "/System", "/private/preboot/Cryptexes/OS/System", 0))) {
 +		native_cryptex_os_status = error;
 +		return;
