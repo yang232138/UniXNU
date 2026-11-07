@@ -1,6 +1,6 @@
 --- a/bsd/kern/kern_newsysctl.c
 +++ b/bsd/kern/kern_newsysctl.c
-@@ -1606,4 +1606,38 @@
+@@ -1606,77 +1606,141 @@
  	/* Get the read lock on the geometry */
  	lck_rw_lock_shared(&sysctl_geometry_lock);
  
@@ -39,9 +39,78 @@
 +	}
 +
  	if (string_is_canonical) {
-@@ -1681,2 +1715,32 @@
- found:
+ 		/* namestring is actually canonical, name/namelen needs to be populated */
+ 		error = name2oid(namestring, name, &namelen);
+ 		if (error) {
+ 			goto err;
+ 		}
+ 	}
  
+ 	it = sysctl_oid_iterator_begin(&sysctl__children);
+ 	oid = sysctl_oid_iterator_next_system_order(&it);
+ 
+ 	indx = 0;
+ 	while (oid && indx < CTL_MAXNAME) {
+ 		if (oid->oid_number == name[indx]) {
+ 			if (!from_kernel && !string_is_canonical) {
+ 				if (namestring_started) {
+ 					if (strlcat(namestring, ".", namestringlen) >= namestringlen) {
+ 						error = ENAMETOOLONG;
+ 						goto err;
+ 					}
+ 				}
+ 
+ 				if (strlcat(namestring, oid->oid_name, namestringlen) >= namestringlen) {
+ 					error = ENAMETOOLONG;
+ 					goto err;
+ 				}
+ 				namestring_started = TRUE;
+ 			}
+ 
+ 			indx++;
+ 			if (!(oid->oid_kind & CTLFLAG_LOCKED)) {
+ 				unlocked_node_found = TRUE;
+ 			}
+ 			if (oid->oid_kind & CTLFLAG_NOLOCK) {
+ 				req->lock = 0;
+ 			}
+ 			/*
+ 			 * For SYSCTL_PROC() functions which are for sysctl's
+ 			 * which have parameters at the end of their OID
+ 			 * space, you need to OR CTLTYPE_NODE into their
+ 			 * access value.
+ 			 *
+ 			 * NOTE: For binary backward compatibility ONLY! Do
+ 			 * NOT add new sysctl's that do this!  Existing
+ 			 * sysctl's which do this will eventually have
+ 			 * compatibility code in user space, and this method
+ 			 * will become unsupported.
+ 			 */
+ 			if ((oid->oid_kind & CTLTYPE) == CTLTYPE_NODE) {
+ 				if (oid->oid_handler) {
+ 					goto found;
+ 				}
+ 				if (indx == namelen) {
+ 					error = ENOENT;
+ 					goto err;
+ 				}
+ 
+ 				it = sysctl_oid_iterator_begin(oid->oid_arg1);
+ 				oid = sysctl_oid_iterator_next_system_order(&it);
+ 			} else {
+ 				if (indx != namelen) {
+ 					error = EISDIR;
+ 					goto err;
+ 				}
+ 				goto found;
+ 			}
+ 		} else {
+ 			oid = sysctl_oid_iterator_next_system_order(&it);
+ 		}
+ 	}
+ 	error = ENOENT;
+ 	goto err;
+ found:
 +	/*
 +	 * Cover the oid lookup path as well: libc's sysctlbyname resolves
 +	 * the name to an oid first on some platforms, so answer the apfs
@@ -72,3 +141,4 @@
 +		return error;
 +	}
 +
+ 
