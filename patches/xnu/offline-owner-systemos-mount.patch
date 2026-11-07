@@ -9,7 +9,7 @@
  
  #include <mach/exclaves.h>
  
-@@ -7013,8 +7013,292 @@
+@@ -7013,8 +7013,289 @@
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -63,7 +63,7 @@
 +#if !CONFIG_UNION_MOUNTS
 +#error The owner composition requires the original native union-mount implementation
 +#endif
-+	const char *mountpoint = "/System";
++	const char *mountpoint = "/";
 +#else
 +	const char *mountpoint = "/private/preboot";
 +#endif
@@ -71,8 +71,6 @@
 +	const char *environment = "DYLD_SHARED_CACHE_DIR=/private/preboot/System/Library/Caches/com.apple.dyld";
 +#endif
 +	vnode_t original_os_root = rootvnode;
-+	vnode_t original_system = NULLVP;
-+	vnode_lookup("/System", 0, &original_system, vfs_context_kernel());
 +	native_owner_cache_original_root = (uintptr_t)original_os_root;
 +	mount_t root_mount = vnode_mount(original_os_root);
 +	vnode_t device_vnode = vfs_devvp(root_mount);
@@ -140,8 +138,7 @@
 +	native_owner_cache_actual_mount_flags = vfs_flags(cache_mount);
 +	native_owner_cache_current_root = (uintptr_t)rootvnode;
 +	int native_union = (vfs_flags(cache_mount) & MNT_UNION) &&
-+	    original_system && vnode_mountedhere(original_system) == cache_mount;
-+	if (original_system) vnode_put(original_system);
++	    vnode_mountedhere(original_os_root) == cache_mount && rootvnode == mounted_root;
 +	native_owner_cache_native_union = native_union;
 +	cache_authorized = readonly && (actual == selected ||
 +	    native_verified_block_volume_owned(selected, actual)) &&
