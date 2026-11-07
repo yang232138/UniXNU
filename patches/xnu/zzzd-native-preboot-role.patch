@@ -1,6 +1,6 @@
 --- a/bsd/kern/kern_newsysctl.c
 +++ b/bsd/kern/kern_newsysctl.c
-@@ -1606,4 +1606,37 @@
+@@ -1606,4 +1606,45 @@
  	/* Get the read lock on the geometry */
  	lck_rw_lock_shared(&sysctl_geometry_lock);
  
@@ -34,6 +34,14 @@
 +			}
 +		}
 +		lck_rw_done(&sysctl_geometry_lock);
++		{
++			static int native_preboot_role_hits;
++			if (native_preboot_role_hits < 4) {
++				native_preboot_role_hits++;
++				printf("native: preboot role query oldlen=%lu err=%d\n",
++				    (unsigned long)req->oldlen, error);
++			}
++		}
 +		return error;
 +	}
 +
