@@ -9,7 +9,7 @@
  
  #include <mach/exclaves.h>
  
-@@ -7013,8 +7013,271 @@
+@@ -7013,8 +7013,279 @@
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -38,6 +38,7 @@
 +volatile uintptr_t native_owner_cache_current_root = 0;
 +volatile int native_owner_cache_native_union = 0;
 +volatile dev_t native_owner_cache_selected_device = NODEV;
++volatile int native_owner_cache_dir_status = -1;
 +volatile dev_t native_owner_cache_mounted_device = NODEV;
 +volatile dev_t native_owner_cache_root_device = NODEV;
 +volatile uint64_t native_owner_cache_root_flags = 0;
@@ -153,6 +154,14 @@
 +	if ((error = copyout(fallback, scratch + 0x600, strlen(fallback) + 1)) != 0) goto done;
 +#endif
 +	*envp = scratch + 0x500;
++	{
++		vnode_t cache_dir = NULLVP;
++		int dir_error = vnode_lookup("/private/preboot/System/Library/Caches/com.apple.dyld",
++		    0, &cache_dir, vfs_context_kernel());
++		if (cache_dir) vnode_put(cache_dir);
++		native_owner_cache_dir_status = dir_error;
++		if (dir_error) panic("owner cache dir missing: %d", dir_error);
++	}
 +#else
 +	*envp = USER_ADDR_NULL;
 +#endif
