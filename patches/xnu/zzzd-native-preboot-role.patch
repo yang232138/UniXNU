@@ -1,6 +1,6 @@
 --- a/bsd/kern/kern_newsysctl.c
 +++ b/bsd/kern/kern_newsysctl.c
-@@ -1606,4 +1606,38 @@
+@@ -1606,4 +1606,37 @@
  	/* Get the read lock on the geometry */
  	lck_rw_lock_shared(&sysctl_geometry_lock);
  
@@ -38,4 +38,3 @@
 +	}
 +
  	if (string_is_canonical) {
- 		/* namestring is actually canonical, name/namelen needs to be populated */
