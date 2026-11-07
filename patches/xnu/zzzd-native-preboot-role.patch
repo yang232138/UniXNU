@@ -1,0 +1,42 @@
+--- a/bsd/kern/kern_newsysctl.c
++++ b/bsd/kern/kern_newsysctl.c
+@@ -1731,3 +1731,32 @@
+ 	/* Get the read lock on the geometry */
+ 	lck_rw_lock_shared(&sysctl_geometry_lock);
+ 
++	/*
++	 * libignition locates the preboot volume through
++	 * "vfs.generic.apfs.edt_fstab" and needs an entry carrying the APFS
++	 * preboot role (0x10). The owner cache mount already exposes the
++	 * SystemOS cryptex view at /private/preboot, so report that mount
++	 * point as the preboot role. libignition expects one entry of 0xEC
++	 * bytes: 0x20 reserved, 0xC8 mount point string, then the role.
++	 */
++	if (string_is_canonical && namestring != NULL &&
++	    strcmp(namestring, "vfs.generic.apfs.edt_fstab") == 0) {
++		struct {
++			uint8_t reserved[0x20];
++			char mountpoint[0xC8];
++			uint32_t role;
++		} __attribute__((__packed__)) entry;
++		memset(&entry, 0, sizeof(entry));
++		strlcpy(entry.mountpoint, "/private/preboot", sizeof(entry.mountpoint));
++		entry.role = 0x10;
++		if (req->oldptr == 0) {
++			req->oldidx = sizeof(entry);
++			error = 0;
++		} else if (req->oldlen < sizeof(entry)) {
++			error = ENOMEM;
++		} else {
++			error = copyout(&entry, req->oldptr, sizeof(entry));
++			if (error == 0) {
++				req->oldidx = sizeof(entry);
++			}
++		}
++		lck_rw_done(&sysctl_geometry_lock);
++		return error;
++	}
++
+ 	if (string_is_canonical) {
+ 		/* namestring is actually canonical, name/namelen needs to be populated */
+ 		error = name2oid(namestring, name, &namelen);
