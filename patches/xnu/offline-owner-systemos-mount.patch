@@ -291,7 +291,7 @@
  {
  	int retval[2];
  	int error;
-@@ -7086,7 +7329,13 @@
+@@ -7086,7 +7329,15 @@
  	 */
  	init_exec_args.fname = argv0;
  	init_exec_args.argp = scratch_addr;
