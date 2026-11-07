@@ -9,7 +9,7 @@
  
  #include <mach/exclaves.h>
  
-@@ -7013,8 +7013,289 @@
+@@ -7013,8 +7013,297 @@
   *		word width of the kernel. Once the self-exec completes, the
   *		initproc might be different.
   */
@@ -167,9 +167,17 @@
 +		vnode_t cache_file = NULLVP;
 +		int file_error = vnode_lookup("/private/preboot/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64",
 +		    0, &cache_file, vfs_context_kernel());
-+		if (cache_file) vnode_put(cache_file);
 +		native_owner_cache_file_status = file_error;
-+		if (file_error) panic("owner cache file missing: %d", file_error);
++		if (file_error) {
++			if (cache_file) vnode_put(cache_file);
++			panic("owner cache file missing: %d", file_error);
++		}
++		struct vnode_attr attr;
++		VATTR_INIT(&attr);
++		VATTR_WANTED(&attr, va_size);
++		int attr_error = vnode_getattr(cache_file, &attr, vfs_context_kernel());
++		panic("owner cache file: size=%llu err=%d",
++		    (unsigned long long)(attr_error == 0 ? attr.va_size : 0), attr_error);
 +	}
 +#else
 +	*envp = USER_ADDR_NULL;
