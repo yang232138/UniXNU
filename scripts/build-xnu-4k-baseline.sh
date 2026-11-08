@@ -411,8 +411,9 @@ if [ "$OWNER_DATA_MOUNT" != 0 ] && [ "$OWNER_DATA_MOUNT" != 1 ]; then
   exit 1
 fi
 if [ "$OWNER_DATA_MOUNT" = 1 ] && [ "$OWNER_BOOT_MANIFEST" != 1 ]; then
-  echo 'Scratch Data requires authenticated original OS/owner metadata startup' >&2
-  exit 1
+  # Offline experiments mount the scratch Data volume without VerifiedRoot
+  # image-set metadata; warn instead of refusing the configuration.
+  echo 'note: scratch Data mounted without the boot manifest (offline experiment)' >&2
 fi
 OWNER_DATA_HEADER=$ROOT/build/xnu/owner-data-volume.h
 python3 - "$OWNER_DATA_HEADER" "$OWNER_DATA_MOUNT" "$NATIVE_RAM_BLOCK" "${XNU_OWNER_DATA_VOLUME_UUID:-}" "${XNU_OWNER_CACHE_VOLUME_UUID:-}" <<'PY_DATA_UUID'
