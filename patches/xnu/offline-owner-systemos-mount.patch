@@ -211,7 +211,7 @@
 +#endif
 +
 +#if defined(XNU_OWNER_DATA_MOUNT) && XNU_OWNER_DATA_MOUNT
-+#if 0 /* offline path: scratch Data mount allowed without the boot manifest */
++#if !defined(XNU_OWNER_BOOT_MANIFEST) || !XNU_OWNER_BOOT_MANIFEST
 +#error Scratch Data mounting requires the authenticated original OS startup path
 +#endif
 +#if defined(XNU_NATIVE_RAM_BLOCK) && XNU_NATIVE_RAM_BLOCK
