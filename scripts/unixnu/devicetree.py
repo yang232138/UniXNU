@@ -335,7 +335,12 @@ def generate(dtb, config, *, unique_chip_id=None, data=False, trust=False, addon
     mappings = [('PackedRAMDisk' if options.get('packed_data_ramdisk') else 'RAMDisk', bytes(16))] if data else []
     mappings += [('TrustCache', bytes(16))] if trust else []
     mappings += [('GpuAddon', bytes(16))] if addon else []
-    children = [node('chosen', chosen, [node('memory-map', mappings), node('manifest-properties')])]
+    # mount reads boot-manifest-hash from IODeviceTree:/chosen/secure-boot-hashes.
+    # The offline image has no APTicket to derive it from; publish a documented
+    # placeholder so the lookup succeeds and the mount path can be observed.
+    secure = node('secure-boot-hashes', [('boot-manifest-hash', bytes(64)),
+                                         ('crypto-hash-method', b'sha2-384\0')])
+    children = [node('chosen', chosen, [node('memory-map', mappings), node('manifest-properties'), secure])]
     cpus = next((entry for entry in root.children if entry.name == 'cpus'), None)
     if cpus is None:
         raise Error('Hardware DTS requires /cpus')
