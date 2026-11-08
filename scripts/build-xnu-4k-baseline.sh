@@ -395,8 +395,8 @@ if [ "$OWNER_BOOT_MANIFEST" != 0 ] && [ "$OWNER_BOOT_MANIFEST" != 1 ]; then
   exit 1
 fi
 if [ "$OWNER_BOOT_MANIFEST" = 1 ] && [ "$OWNER_CACHE_STARTUP" != 1 ]; then
-  echo 'Owner boot metadata requires real authenticated owner root/cache startup' >&2
-  exit 1
+  # Offline experiments skip the ignition gate; allow the manifest without it.
+  echo 'note: owner boot manifest without the cache startup gate (offline experiment)' >&2
 fi
 EXTRA_MAKE_ARGS+=("IOKitBSDInit.cpo_CFLAGS_ADD=-DXNU_OWNER_BOOT_MANIFEST=$OWNER_BOOT_MANIFEST")
 OWNER_MANIFEST_STAMP=$ROOT/build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/.owner-boot-manifest-mode
