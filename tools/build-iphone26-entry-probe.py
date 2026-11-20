@@ -18,7 +18,7 @@ def sha256(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def add_arm_init_markers(kernel, scripts, stage, vm_marker=False):
+def add_arm_init_markers(kernel, scripts, stage, vm_marker=False, vm_return_marker=False):
     sys.path.insert(0, str(scripts))
     spec = importlib.util.spec_from_file_location("entry_probe", scripts / "patch-xnu-entry-probe.py")
     probe = importlib.util.module_from_spec(spec)
@@ -59,10 +59,35 @@ def add_arm_init_markers(kernel, scripts, stage, vm_marker=False):
             raise SystemExit("The arm_vm_init marker does not fit unused kernel entry padding")
         image[vm_start:vm_start + len(vm_code)] = vm_code
         struct.pack_into("<I", image, vm_site, 0x80000000 | probe.branch(vm_call, vm_cave))
+    if vm_return_marker:
+        add_vm_return_marker(probe, image, names, entry, source.parent, stage)
     kernel.write_bytes(image)
     print("Added an orange marker at arm_init entry")
     if vm_marker:
         print("Added a cyan marker immediately before calling arm_vm_init")
+    if vm_return_marker:
+        print("Added a red marker after arm_vm_init returns")
+
+
+def add_vm_return_marker(probe, image, names, entry, target_dir, stage):
+    site = 0xfffffff007be3018
+    site_offset = probe.file_offset(site)
+    symbols = {
+        "_const_boot_args": 0xfffffff0071b12f0,
+        "_debug_boot_arg": 0xfffffff00719e1e8,
+        "_ml_io_map": 0xfffffff007526cb4,
+    }
+    if (any(names.get(name) != address for name, address in symbols.items())
+            or struct.unpack_from("<III", image, site_offset) != (0xf0ffadc8, 0xd503201f, 0xb941e908)):
+        raise SystemExit("The arm_vm_init continuation no longer matches the verified ABI")
+    cave = entry + 0x2f8
+    start = probe.file_offset(cave)
+    source = (target_dir / "arm-vm-init-return-marker.S").read_text()
+    code = probe.assemble(source, cave, {**symbols, "resume": site + 4}, stage)
+    if not 0 < len(code) <= 0x100 or any(image[start:start + 0x100]):
+        raise SystemExit("The arm_vm_init return marker does not fit unused kernel entry padding")
+    image[start:start + len(code)] = code
+    struct.pack_into("<I", image, site_offset, probe.branch(site, cave))
 
 
 def main():
@@ -72,7 +97,11 @@ def main():
     parser.add_argument("--post-mmu-reset", action="store_true", help="Reset six seconds after MMU enable")
     parser.add_argument("--arm-init-marker", action="store_true", help="Draw one screen marker at arm_init")
     parser.add_argument("--arm-vm-init-marker", action="store_true", help="Also mark the call to arm_vm_init")
+    parser.add_argument("--arm-vm-init-return-marker", action="store_true",
+                        help="Mark return from arm_vm_init using the initialized kernel I/O mapping")
     args = parser.parse_args()
+    if args.arm_vm_init_return_marker and not args.arm_vm_init_marker:
+        parser.error("The return marker requires --arm-vm-init-marker")
     if args.arm_vm_init_marker and not args.arm_init_marker:
         parser.error("The arm_vm_init marker requires --arm-init-marker")
     if args.post_mmu_reset and args.arm_init_marker:
@@ -115,7 +144,8 @@ def main():
         subprocess.run([sys.executable, str(scripts / "patch-xnu-entry-probe.py"), str(kernel), *reset_options],
                        env=env, check=True)
         if args.arm_init_marker:
-            add_arm_init_markers(kernel, scripts, stage, vm_marker=args.arm_vm_init_marker)
+            add_arm_init_markers(kernel, scripts, stage, vm_marker=args.arm_vm_init_marker,
+                                 vm_return_marker=args.arm_vm_init_return_marker)
         subprocess.run([sys.executable, str(scripts / "seal-source-crypto-kernel.py"), str(kernel),
                         "--kernel-args", boot["entry"][0]["args"]], env=env, check=True)
         patched = kernel.read_bytes()
@@ -138,7 +168,8 @@ def main():
         record.update(sha256=sha256(data), crc32=f"{zlib.crc32(data):08x}", kernel_sha256=patched_digest,
                       original_kernel_sha256=kernel_digest, entry_probe="entry and pre-MMU",
                       post_mmu_reset_seconds=6 if args.post_mmu_reset else None, menu_entries=["xnu"],
-                      arm_init_marker=args.arm_init_marker, arm_vm_init_marker=args.arm_vm_init_marker)
+                      arm_init_marker=args.arm_init_marker, arm_vm_init_marker=args.arm_vm_init_marker,
+                      arm_vm_init_return_marker=args.arm_vm_init_return_marker)
         candidate.replace(args.payload)
         payload_record.write_text(json.dumps(record, indent=2) + "\n")
         print(json.dumps(record, indent=2))

@@ -9,6 +9,7 @@ on:
       - 'tools/build-iphone26-entry-probe.py'
       - 'uefi/overlay/Platforms/Xiaomi/houjiPkg/Drivers/HoujiPowerKeyDxe/**'
       - 'targets/ios-26.6.2-23G90/arm-init-marker.S'
+      - 'targets/ios-26.6.2-23G90/arm-vm-init-return-marker.S'
 
 permissions:
   contents: read
@@ -21,6 +22,7 @@ jobs:
       iphone26: true
       probe_arm_init_marker: true
       probe_arm_vm_init_marker: true
+      probe_arm_vm_init_return_marker: true
       houji_power_key: true
       probe_source_run: '44671105089'
       probe_source_sha256: '183cf3063a8938abe7ff1ea980d422f93c04395a5d2d7c5f8d6e1b0be83f85ee'
