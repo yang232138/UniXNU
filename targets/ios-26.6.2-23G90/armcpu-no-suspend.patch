@@ -1,0 +1,48 @@
+diff --git a/ArmCpu.cpp b/ArmCpu.cpp
+index 372a2a4..4a5225f 100644
+--- a/ArmCpu.cpp
++++ b/ArmCpu.cpp
+@@ -61,8 +61,6 @@ volatile int32_t armcpu_psci[4];
+ volatile struct armcpu_sleep_stats armcpu_sleep_stats;
+ volatile int32_t armcpu_sleep_last_cpu_off_rc = 0;
+ }
+-// The board XNU patch's hook in ml_arm_sleep (osfmk/arm64/cpu.c): called on each core on its way to sleep, the boot core last.
+-extern "C" void (*arm64_platform_sleep_hook) (boolean_t boot_cpu) __attribute__((weak_import));
+ extern "C" void ml_arm_sleep (void) __attribute__ ((noreturn));
+ extern "C" boolean_t ml_is_quiescing (void);
+ 
+@@ -103,13 +101,14 @@ static uint64_t gCounterHz = 0;           // CNTFRQ_EL0
+ // as the core takes to leave idle. The rows of armcpu_stats_row measure that time (timer late, in idle).
+ static uint32_t gIdleLatencyNs = 0;
+ // Platform sleep (see the functions above ArmCpu::enableCPUTimeBase).
+-static bool gSleepEnabled = false;                         // platform-sleep=1
++// The first-entry kernel has no board suspend hook.
++static constexpr bool gSleepEnabled = false;
+ static bool gSleepHvc = false;                             // the PSCI conduit, from /psci
+ static uint32_t gSleepWakeAfterS = 0;                      // platform-sleep-wake-after=<seconds>; 0 none
+ static const struct armcpu_sleep_board *volatile gSleepBoard = nullptr;
+ static const uint32_t kVirtualTimerPpi = 27;
+ static bool psciConduit (bool *hvc);
+-static void armcpuPlatformSleep (boolean_t bootCpu);
++[[maybe_unused]] static void armcpuPlatformSleep (boolean_t bootCpu);
+ 
+ class ArmCpu : public IOCPU {
+   OSDeclareDefaultStructors (ArmCpu)
+@@ -590,17 +589,6 @@ bool ArmCpu::start (IOService *provider)
+     __asm__ volatile ("mrs %0, mpidr_el1" : "=r" (bootMpidr));
+     armcpu_boot_mpidr = static_cast<uint32_t> (bootMpidr);
+     if ((!skipGic && !prepareGic ()) || !IOCPU::start (provider)) { return false; }
+-    // Platform sleep: the hook goes in only with the switch on and a PSCI conduit to turn cores off; otherwise ml_arm_sleep keeps its
+-    // own path and the system keeps its sleep-disabled default.
+-    unsigned sleep = 0;
+-    PE_parse_boot_argn ("platform-sleep", &sleep, sizeof (sleep));
+-    unsigned wakeAfter = 0;
+-    PE_parse_boot_argn ("platform-sleep-wake-after", &wakeAfter, sizeof (wakeAfter));
+-    gSleepWakeAfterS = wakeAfter;
+-    if (sleep == 1 && &arm64_platform_sleep_hook && !skipGic && psciConduit (&gSleepHvc)) {
+-      gSleepEnabled = true;
+-      arm64_platform_sleep_hook = &armcpuPlatformSleep;
+-    }
+   }
+   cpuName = OSSymbol::withCStringNoCopy ("ARM architectural boot CPU");
+   if (cpuName == nullptr) { return false; }

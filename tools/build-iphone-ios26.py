@@ -5,9 +5,11 @@ import hashlib
 import json
 from pathlib import Path
 import platform
+import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,7 +65,15 @@ def main():
     if (platform.system(), platform.machine()) != ("Darwin", "arm64"):
         parser.error("This build needs an Apple Silicon macOS host with Xcode and the iPhoneOS SDK")
 
-    command(*base, "build", "kernel", "--skip-prelink", *options, cwd=unixnu)
+    command("git", "submodule", "update", "--init", "drivers/ArmCpu", cwd=unixnu)
+    with tempfile.TemporaryDirectory(prefix="iphone26-armcpu-") as temporary:
+        armcpu = Path(temporary) / "ArmCpu"
+        shutil.copytree(unixnu / "drivers" / "ArmCpu", armcpu, ignore=shutil.ignore_patterns(".git"))
+        command("git", "apply", "--no-index", TARGET / "armcpu-no-suspend.patch", cwd=armcpu)
+        command(
+            *base, "build", "kernel", "--skip-prelink", *options,
+            "--local-module", f"driver:ArmCpu={armcpu}", cwd=unixnu,
+        )
     kernel = work / "kernel" / "kernel.macho"
     data = kernel.read_bytes()
     magic, cpu, subtype, filetype = struct.unpack_from("<IIII", data)
