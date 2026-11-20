@@ -17,6 +17,7 @@ jobs:
     uses: ./.github/workflows/houji-uefi.yml
     with:
       iphone26: true
+      probe_post_mmu_reset: true
       probe_source_run: '44671105089'
       probe_source_sha256: '183cf3063a8938abe7ff1ea980d422f93c04395a5d2d7c5f8d6e1b0be83f85ee'
     secrets:

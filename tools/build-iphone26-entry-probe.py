@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reuse the verified first-entry FAT volume with UniXNU's two no-reset probes."""
+"""Reuse the verified first-entry FAT volume with UniXNU's entry probes."""
 import argparse
 import hashlib
 import json
@@ -20,6 +20,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--unixnu", type=Path, required=True)
     parser.add_argument("--payload", type=Path, required=True, help="Disposable copy of the verified FAT volume")
+    parser.add_argument("--post-mmu-reset", action="store_true", help="Reset six seconds after MMU enable")
     args = parser.parse_args()
     payload_record = args.payload.with_suffix(".json")
     record = json.loads(payload_record.read_text())
@@ -47,7 +48,8 @@ def main():
         if boot["boot"] != {"default": "xnu", "timeout": 5}:
             parser.error("The FAT volume does not have the qualified automatic menu")
         scripts = args.unixnu / "scripts"
-        subprocess.run([sys.executable, str(scripts / "patch-xnu-entry-probe.py"), str(kernel), "--no-reset"],
+        reset_options = ["--reset-delay", "6"] if args.post_mmu_reset else ["--no-reset"]
+        subprocess.run([sys.executable, str(scripts / "patch-xnu-entry-probe.py"), str(kernel), *reset_options],
                        env=env, check=True)
         subprocess.run([sys.executable, str(scripts / "seal-source-crypto-kernel.py"), str(kernel),
                         "--kernel-args", boot["entry"][0]["args"]], env=env, check=True)
@@ -64,7 +66,8 @@ def main():
 
         data = candidate.read_bytes()
         record.update(sha256=sha256(data), crc32=f"{zlib.crc32(data):08x}", kernel_sha256=patched_digest,
-                      original_kernel_sha256=kernel_digest, entry_probe="entry and pre-MMU, no reset")
+                      original_kernel_sha256=kernel_digest, entry_probe="entry and pre-MMU",
+                      post_mmu_reset_seconds=6 if args.post_mmu_reset else None)
         candidate.replace(args.payload)
         payload_record.write_text(json.dumps(record, indent=2) + "\n")
         print(json.dumps(record, indent=2))
