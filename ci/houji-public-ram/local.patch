@@ -1,0 +1,564 @@
+diff --git a/kernel/ios26/patches/ram-only.patch b/kernel/ios26/patches/ram-only.patch
+new file mode 100644
+index 0000000..ad22c75
+--- /dev/null
++++ b/kernel/ios26/patches/ram-only.patch
+@@ -0,0 +1,428 @@
++diff --git a/iokit/Kernel/houji-ufs-root/HoujiUfsRead.cpp b/iokit/Kernel/houji-ufs-root/HoujiUfsRead.cpp
++--- a/iokit/Kernel/houji-ufs-root/HoujiUfsRead.cpp
+++++ b/iokit/Kernel/houji-ufs-root/HoujiUfsRead.cpp
++@@ -145,9 +145,8 @@
++   uintptr_t smmu = 0, cb = 0;
++ };
++ UfsHost gHost = { OSSharedPtr<IOMemoryMap> (), OSSharedPtr<IOMemoryMap> (), 0, nullptr, nullptr, 0, nullptr, false };
++-static bool gLogEnabled, gLogArmed, gRootEnabled, gRootArmed, gReturnRecovery, gRecoveryArmed;
+++static bool gLogEnabled, gRootEnabled, gRootArmed, gReturnRecovery;
++ static bool gGptVerified, gFlagsInitialized;
++-static uint32_t gLogExpectedCrc;
++ 
++ static IOReturn recordTransport (IOReturn result, uint32_t ocs)
++ {
++@@ -215,247 +214,17 @@
++ // `why` receives a short reason on failure.
++ static bool hostBringUp (const char **why)
++ {
++-  if (gHost.poisoned) {
++-    *why = "transport quarantined";
++-    return false;
++-  }
++-  if (gHost.ready) {
++-    return true;
++-  }
++-  nativeStage("controller map");
++-  gHost.hc = mapPhys (UFS_HC_BASE, UFS_HC_SIZE, gHost.hcMap);
++-  if (!gHost.hc) {
++-    *why = "controller map";
++-    return false;
++-  }
++-  if (gRootDiagnosticEnabled) {
++-    gRootDiagnostic.cap = read32 (gHost.hc, 0x00);
++-    gRootDiagnostic.version = read32 (gHost.hc, 0x08);
++-    gRootDiagnostic.hcs = read32 (gHost.hc, 0x30);
++-    gRootDiagnostic.hce = read32 (gHost.hc, 0x34);
++-  }
++-  nativeStage("DMA allocation");
++-  gHost.dma = IOBufferMemoryDescriptor::inTaskWithOptions (
++-    kernel_task, static_cast<IOOptionBits> (kIODirectionInOut) | static_cast<IOOptionBits> (kIOMemoryPhysicallyContiguous) |
++-    static_cast<IOOptionBits> (kIOMemoryMapperNone),
++-    kDmaBytes, 4096);
++-  gHost.lock = IOLockAlloc ();
++-  if (!gHost.dma || !gHost.lock) {
++-    *why = "dma buffer";
++-    return false;
++-  }
++-  gHost.virt = static_cast<uint8_t *> (gHost.dma->getBytesNoCopy ());
++-  IOByteCount contiguous = 0;
++-  gHost.phys = gHost.dma->getPhysicalSegment (0, &contiguous, kIOMemoryMapperNone);
++-  gRootDiagnostic.dma = gHost.phys;
++-  gRootDiagnostic.contiguous = contiguous;
++-  if (!gHost.virt || !gHost.phys || (gHost.phys & 4095) || contiguous < kDmaBytes ||
++-      (!(read32 (gHost.hc, 0) & 0x01000000) && gHost.phys + kDmaBytes > 0x100000000ULL)) {
++-    *why = "DMA address/contiguity";
++-    return false;
++-  }
++-  bzero (gHost.virt, kDmaBytes);
++-  cacheCivac (gHost.virt, kDmaBytes);
++-  uint32_t report[3] = { 0, 0, 0 };
++-  nativeStage("SMMU and request list");
++-  if (!hostStopQueue (why)) return false;
++-  smmuBypassStream (0x60, gHost.smmuMap, report, gHost.phys, kDmaBytes, gHost.hc);
++-  gHost.smmu = gHost.smmuMap->getVirtualAddress ();
++-  uint32_t idr1 = read32 (gHost.smmu, 0x24);
++-  gHost.cb = gHost.smmu + ((1U << (((idr1 >> 28) & 7) + 1)) + (report[0] >> 16)) * 4096;
++-  if (gRootDiagnosticEnabled) {
++-    gRootDiagnostic.gfsrBefore = read32 (gHost.smmu, 0x48);
++-    gRootDiagnostic.fsrBefore = read32 (gHost.cb, 0x58);
++-    gRootDiagnostic.smmuId2 = read32 (gHost.smmu, 0x28);
++-    gRootDiagnostic.cba2r = read32 (gHost.smmu, 0x1800 + 4 * (report[0] >> 16));
++-  }
++-  if (!hostStartQueue (why)) return false;
++-  nativeStage("NOP OUT");
++-  // NOP OUT proves the transport before touching the SCSI layer.
++-  if (hostNop () != kIOReturnSuccess) {
++-    gHost.ready = false;
++-    *why = "NOP OUT";
++-    return false;
++-  }
++-  uint32_t power = 0;
++-  nativeStage("power mode query");
++-  if (hostQueryRead (0x03, 0x02, &power) != kIOReturnSuccess) {
++-    gHost.ready = false;
++-    *why = "power mode query";
++-    return false;
++-  }
++-  gRootDiagnostic.power = power;
++-  if ((power & 0xff) != 0x11) {
++-    nativeStage("device wake");
++-    // START STOP UNIT, power condition ACTIVE, to the UFS Device well-known LU (as Linux resumes).
++-    uint8_t ssu[6] = { 0x1b, 0, 0, 0, 0x10, 0 };
++-    uint32_t scsi = 0;
++-    if (hostScsi (0xd0, ssu, 6, false, 0, 500000, &scsi) != kIOReturnSuccess) {
++-      gHost.ready = false;
++-      *why = "wake (START STOP UNIT)";
++-      return false;
++-    }
++-    IODelay (50000);
++-  }
++-  nativeStage("LUN ready");
++-  for (unsigned attempt = 0; attempt < 20; attempt++) {
++-    uint8_t tur[6] = { 0, 0, 0, 0, 0, 0 };
++-    uint32_t scsi = 0;
++-    if (hostScsi (0, tur, 6, false, 0, 200000, &scsi) == kIOReturnSuccess) {
++-      gHost.ready = true;
++-      return true;
++-    }
++-    if (gHost.poisoned) break;
++-    IODelay (10000);
++-  }
++-  gHost.ready = false;
++-  *why = "LUN 0 not ready";
+++  // Leave the physical controller and its mappings alone for a RAM boot.
+++  *why = "native UFS disabled in the RAM-only kernel";
++   return false;
++ }
++ }
++ 
++ #include "HoujiGptCheck.h"
++-#include "HoujiLogFile.h"
++-#include "HoujiLogCommit.h"
++ #include "HoujiRootWindow.h"
++ #include "HoujiFirmwareUfs.inc"
++ #include "HoujiFirmwareProbe.inc"
++ 
++-extern "C" bool bsd_log_lock(bool);
++-extern "C" void bsd_log_unlock(void);
++-
++-// Normal BSD initialization context only. Never invoked from a panic handler,
++-// interrupt, or while owning the log lock. No allocation/I/O while locked.
++-static unsigned copyKernelMessages(char *dst,unsigned capacity) {
++-  unsigned done=0;
++-  bsd_log_lock(true);
++-  const struct msgbuf *m=msgbufp;
++-  if(m && m->msg_magic==MSG_MAGIC && m->msg_bufc && m->msg_size>0 &&
++-     m->msg_bufx>=0 && m->msg_bufx<m->msg_size) {
++-    unsigned size=unsigned(m->msg_size), count=size<capacity?size:capacity;
++-    unsigned at=(unsigned(m->msg_bufx)+size-count)%size;
++-    for(unsigned i=0;i<count;i++) {
++-      char c=m->msg_bufc[at];at=(at+1)%size;
++-      if(c)dst[done++]=c;
++-    }
++-  }
++-  bsd_log_unlock();
++-  return done;
++-}
++-
++-static IOReturn writeLogBlock(unsigned index,const uint8_t *data) {
++-  if(!gLogArmed || !gHost.ready || gHost.poisoned || index>=16 || !data) return kIOReturnNotPermitted;
++-  IOLockLock(gHost.lock);
++-  if(!hostClearUcd()) {IOLockUnlock(gHost.lock);return kIOReturnNotReady;}
++-  memcpy(gHost.virt+kDataOffset,data,4096);
++-  uint32_t lba=kHoujiLogLbas[index],scsi=0;
++-  uint8_t cdb[10]={0x2a,0,uint8_t(lba>>24),uint8_t(lba>>16),uint8_t(lba>>8),uint8_t(lba),0,0,1,0};
++-  IOReturn r=hostScsiDir(0,cdb,10,1,4096,1000000,&scsi);
++-  IOLockUnlock(gHost.lock);
++-  return r;
++-}
++-static IOReturn flushLog(void) {
++-  if(!gLogArmed || !gHost.ready || gHost.poisoned) return kIOReturnNotPermitted;
++-  IOLockLock(gHost.lock);
++-  uint8_t cdb[10]={0x35,0,0,0,0,0,0,0,0,0};uint32_t scsi=0;
++-  IOReturn r=hostScsiDir(0,cdb,10,0,0,1000000,&scsi);
++-  IOLockUnlock(gHost.lock);
++-  return r;
++-}
++-extern "C" unsigned houji_gpu_cached_timing(char *,unsigned);
++-extern "C" unsigned houji_framebuffer_snapshot(char *,unsigned);
++-extern "C" unsigned houji_display_timing_snapshot(char *,unsigned);
++-extern "C" unsigned houji_sample_snapshot(char *,unsigned);
++-extern "C" unsigned houji_network_stack_snapshot(char *,unsigned);
++-extern "C" unsigned houji_cpu_dvfs_snapshot(char *,unsigned);
++-extern "C" unsigned houji_adsp_snapshot(char *,unsigned);
++-#if HOUJI_IOS26
++-#include <machine/machine_routines.h>
++-extern "C" const void *houji26_panic_record(void);
++-#endif
++-#if HOUJI_IOS26 && (DEVELOPMENT || DEBUG)
++-extern "C" unsigned houji26_wallpaper_snapshot(char *,unsigned);
++-#endif
++-static const char *saveNativeLog(__unused const char *stage) {
++-  static uint8_t metadata[7*4096],image[65536];
++-  constexpr unsigned gpuCapacity=20480,displayCapacity=4096,sampleCapacity=12800;
++-  constexpr unsigned networkCapacity=512,cpuCapacity=1024,batteryCapacity=2048,panelCapacity=4096;
++-  constexpr unsigned wallpaperCapacity=3072;
++-  static_assert(sizeof(gNativeText)+gpuCapacity+displayCapacity+sampleCapacity+
++-    networkCapacity+cpuCapacity+batteryCapacity+panelCapacity+wallpaperCapacity+128<sizeof(image)-4096,
++-    "snapshot prefixes exceed existing log file");
++-  nativeStage("logfs metadata read");
++-  for(unsigned i=0;i<7;i++)
++-    if(hostRead4k(0,4096+i,1,metadata+i*4096)!=kIOReturnSuccess) return "log metadata read failed";
++-  const char *why=houjiLogFatError(metadata,sizeof(metadata));
++-  if(why)return why;
++-  nativeStage("reserved file allocation verified");
++-  for(unsigned i=0;i<16;i++)
++-    if(hostRead4k(0,kHoujiLogLbas[i],1,image+i*4096)!=kIOReturnSuccess) return "initial log file read failed";
++-  if(houjiCrc32(image,sizeof(image))!=(gLogExpectedCrc?gLogExpectedCrc:kHoujiLogInitialCrc))return "log file ownership/run ID changed";
++-  nativeStage("READ PASS; saving XNU snapshot before diagnostic stop");
++-  bzero(image,sizeof(image));
++-  unsigned used=gNativeTextBytes;
++-  memcpy(image+4096,gNativeText,used);
++-  used+=houji_gpu_cached_timing(reinterpret_cast<char *>(image+4096+used),gpuCapacity);
++-  used+=houji_framebuffer_snapshot(reinterpret_cast<char *>(image+4096+used),displayCapacity);
++-  used+=houji_display_timing_snapshot(reinterpret_cast<char *>(image+4096+used),panelCapacity);
++-  used+=houji_sample_snapshot(reinterpret_cast<char *>(image+4096+used),sampleCapacity);
++-  used+=houji_network_stack_snapshot(reinterpret_cast<char *>(image+4096+used),networkCapacity);
++-  used+=houji_cpu_dvfs_snapshot(reinterpret_cast<char *>(image+4096+used),cpuCapacity);
++-  unsigned batteryUsed=houjiBatterySurveySnapshot(reinterpret_cast<char *>(image+4096+used),batteryCapacity);
++-  used+=batteryUsed;
++-  unsigned fwUsed=houjiFwProbeSnapshot(reinterpret_cast<char *>(image+4096+used),batteryCapacity-batteryUsed);
++-  used+=fwUsed;batteryUsed+=fwUsed;
++-  used+=houji_adsp_snapshot(reinterpret_cast<char *>(image+4096+used),batteryCapacity-batteryUsed);
++-#if HOUJI_IOS26 && (DEVELOPMENT || DEBUG)
++-  static const char gpuEnd[]="HOUJI26 STARTUP RESULT: gpu-runtime-end ";
++-  static const char services[]="HOUJI26 STARTUP RESULT: stock-launchd-services ";
++-  if(stage && (!strncmp(stage,gpuEnd,sizeof(gpuEnd)-1) || !strncmp(stage,services,sizeof(services)-1)))
++-    used+=houji26_wallpaper_snapshot(reinterpret_cast<char *>(image+4096+used),wallpaperCapacity);
++-#endif
++-  static const char marker[]="\n--- XNU kernel message buffer (tail; NULs removed) ---\n";
++-  memcpy(image+4096+used,marker,sizeof(marker)-1);used+=sizeof(marker)-1;
++-  used+=copyKernelMessages(reinterpret_cast<char *>(image+4096+used),sizeof(image)-4096-used);
++-  houjiLogHeader(image,image+4096,used);
++-#if HOUJI_IOS26
++-  // Typed crash-record locator in previously unused header bytes. Written
++-  // only at existing healthy startup checkpoints, never from panic.
++-  const uint64_t panicPa=ml_static_vtop((vm_offset_t)houji26_panic_record());
++-  constexpr uint32_t panicBytes=544;
++-  if(gPhysSize>=panicBytes && panicPa>=gPhysBase && panicPa-gPhysBase<=gPhysSize-panicBytes) {
++-    memcpy(image+64,"HJPTR026",8);memcpy(image+72,&panicPa,8);memcpy(image+80,&panicBytes,4);
++-    const uint64_t ownedBase=gPhysBase,ownedBytes=gPhysSize;
++-    memcpy(image+88,&ownedBase,8);memcpy(image+96,&ownedBytes,8);
++-    bzero(image+40,4);const uint32_t headerCrc=houjiCrc32(image,4096);memcpy(image+40,&headerCrc,4);
++-  }
++-#endif
++-  // The armed window contains only the 16 preallocated file data sectors.
++-  // Commit header last, with a cache flush at each boundary. No FAT writes.
++-  gLogArmed=true;
++-  why=houjiCommitLog(image,sizeof(image),
++-    [](unsigned i,const uint8_t *p){return writeLogBlock(i,p)==kIOReturnSuccess;},
++-    [](){return flushLog()==kIOReturnSuccess;},
++-    [](unsigned i,uint8_t *p){return hostRead4k(0,kHoujiLogLbas[i],1,p)==kIOReturnSuccess;});
++-  gLogArmed=false;
++-  if(why)return why;
++-  gLogExpectedCrc=houjiCrc32(image,sizeof(image));
++-  IOLog("HOUJI XNU LOG: COMMIT/FLUSH/READBACK PASS bytes=%u crc=%08x\n",used,houjiLe32(image+36));
++-  return nullptr;
++-}
++-static const char *setRecoveryBoot(void);
++-static void logTrialReset(void) {
++-  const char *why=setRecoveryBoot();
++-  if(why)rootDiagnosticFailure(why);
++-  // Real houji FDT /soc/psci: compatible arm,psci-1.0, method smc.
++-  // Only after successful log and recovery-BCB readback; no active-slot changes.
++-  IOLog("HOUJI XNU LOG: verified snapshot; resetting through PSCI (recovery BCB requested)\n");
++-  __asm__ volatile("dsb sy" ::: "memory");
++-  register uint64_t x0 __asm__("x0")=0x84000009U;
++-  __asm__ volatile("smc #0" : "+r"(x0) :: "x1","x2","x3","x4","x5","x6","x7",
++-                   "x8","x9","x10","x11","x12","x13","x14","x15","x16","x17","cc","memory");
++-  panic("HOUJI XNU LOG: saved, PSCI reset unexpectedly returned %llx",x0);
++-}
++ static void rootDiagnosticFailure(const char *why) {
++   char text[2048];
++   formatUfsRootDiagnostics(text,sizeof(text),gRootDiagnostic,why);
++@@ -468,9 +237,9 @@
++   gCheckpointLock=IOLockAlloc();
++   if(!gCheckpointLock)panic("HOUJI checkpoint lock allocation");
++   gFlagsInitialized=true;gRootDiagnosticEnabled=true;
++-  int v=0;PE_parse_boot_argn("houji_ufs_log",&v,sizeof(v));gLogEnabled=v==1;
++-  v=0;PE_parse_boot_argn("houji_native_root",&v,sizeof(v));gRootEnabled=v==1;
++-  v=0;PE_parse_boot_argn("houji_return_recovery",&v,sizeof(v));gReturnRecovery=v==1;
+++  gLogEnabled = false;
+++  gRootEnabled = false;
+++  gReturnRecovery = false;
++ }
++ static void ensureNative(void) {
++   initializeNativeFlags();
++@@ -506,50 +275,8 @@
++   IOReturn r=hostScsiDir(0,cdb,10,0,0,1000000,&scsi);
++   IOLockUnlock(gHost.lock);return r;
++ }
++-#include "HoujiRecoveryRecord.h"
++-static const char *setRecoveryBoot(void) {
++-  if(!gReturnRecovery)return nullptr;
++-  static uint8_t before[4096],after[4096],back[4096];
++-  if(hostRead4k(0,1024,1,before)!=kIOReturnSuccess)return "BCB read";
++-  memcpy(after,before,sizeof(after));
++-  if(!houjiRecoveryRecord(after,sizeof(after)))return "BCB build";
++-  gRecoveryArmed=true;
++-  IOReturn r=writeNativeBlocks(1024,1,after);
++-  if(r==kIOReturnSuccess)r=flushNative();
++-  gRecoveryArmed=false;
++-  if(r!=kIOReturnSuccess)return "BCB write/flush";
++-  if(hostRead4k(0,1024,1,back)!=kIOReturnSuccess || memcmp(after,back,sizeof(back)))return "BCB readback";
++-  IOLog("HOUJI RECOVERY: BCB verified; no wipe arguments; reserved/A-B data preserved\n");
++-  return nullptr;
++-}
++-extern "C" void houji_ufs_checkpoint(const char *stage,unsigned stopId) {
++-  initializeNativeFlags();
++-  if(!gLogEnabled && !gRootEnabled)return;
++-  IOLockLock(gCheckpointLock);
++-  ensureNative();nativeStage(stage);
++-  int target=0;PE_parse_boot_argn("houji_checkpoint_stop",&target,sizeof(target));
++-  bool panicProbeArmed=false;
++-  if(stopId==3 && target==3 && gLogEnabled && gReturnRecovery) {
++-    int probe=0;
++-    if(PE_parse_boot_argn("houji_panic_probe",&probe,sizeof(probe)) && probe==1) {
++-      // Normal initialization context: finish the existing no-wipe BCB RMW
++-      // and full readback before the log commit or deliberate panic.
++-      const char *why=setRecoveryBoot();
++-      if(why)rootDiagnosticFailure(why);
++-      nativeStage("panic recovery self-test armed; verified BCB, panic after successful log commit");
++-      panicProbeArmed=true;
++-    }
++-  }
++-  if(gLogEnabled){const char *why=saveNativeLog(stage);if(why)rootDiagnosticFailure(why);}
++-  if(panicProbeArmed) {
++-    // The saved intent is not evidence that panic happened. Only reach this
++-    // distinct panic after successful commit/flush/readback; panic does no I/O.
++-    IOLockUnlock(gCheckpointLock);
++-    panic("HOUJI PANIC RECOVERY SELF-TEST: checkpoint3 log commit/readback passed");
++-  }
++-  if(stopId && target==int(stopId))logTrialReset();
++-  IOLockUnlock(gCheckpointLock);
++-}
+++extern "C" void houji_ufs_checkpoint(__unused const char *stage, __unused unsigned stopId) {}
+++
++ static IOLock *gRootWindowLock;
++ static uint8_t *gRootBounce;
++ static void reportCpuFrequencyReadOnly(void) {
++diff --git a/iokit/Kernel/houji-ufs-root/RootCommands.h b/iokit/Kernel/houji-ufs-root/RootCommands.h
++--- a/iokit/Kernel/houji-ufs-root/RootCommands.h
+++++ b/iokit/Kernel/houji-ufs-root/RootCommands.h
++@@ -2,7 +2,6 @@
++ // Shared production command path. Included inside the root transport namespace.
++ // The host harness replaces only MMIO, DMA synchronization, clock and lock primitives.
++ #include "HoujiReadPolicy.h"
++-#include "HoujiLogPolicy.h"
++ #include "HoujiRootPolicy.h"
++ #include "battery/HoujiFirmwareReadPolicy.h"
++ // Owned by gHost.lock; armed for one native firmware read and cleared before
++@@ -34,82 +33,12 @@
++   return (uint32_t (at[0]) << 24) | (uint32_t (at[1]) << 16) | (uint32_t (at[2]) << 8) | at[3];
++ }
++ 
++-// Issue the UPIU already placed at gHost.virt + kUcdOffset through request slot 0. `direction` is
++-// the UTRD data direction (0 none, 1 from host, 2 to host). Direction 1 is reachable only through hostWrite4k, which
++-// confines it to the persistent store window. Returns the overall command status
++-// (0 = completed) in *ocs. Timeout/fatal status quarantines the allocation.
++-static IOReturn hostSubmit (uint32_t direction, uint32_t dataBytes, uint32_t timeoutUs, uint32_t *ocs)
+++// No physical command can be submitted, even if called by an in-kernel client.
+++static IOReturn hostSubmit (__unused uint32_t direction, __unused uint32_t dataBytes,
+++                            __unused uint32_t timeoutUs, uint32_t *ocs)
++ {
++   *ocs = 15;
++-  if (!houjiUfsReadCommandAllowed(gHost.virt+kUcdOffset,32,direction,dataBytes) &&
++-      !houjiUfsLogCommandAllowed(gHost.virt+kUcdOffset,32,direction,dataBytes,gLogEnabled,gLogArmed) &&
++-      !houjiUfsRootCommandAllowed(gHost.virt+kUcdOffset,32,direction,dataBytes,gRootEnabled,gRootArmed) &&
++-      !houjiUfsRecoveryCommandAllowed(gHost.virt+kUcdOffset,32,direction,dataBytes,gReturnRecovery,gRecoveryArmed) &&
++-      !houjiUfsFirmwareCommandAllowed(gHost.virt+kUcdOffset,32,direction,dataBytes,gFirmwareReadGrant))
++-    return kIOReturnNotPermitted;
++-  if (!timeoutUs || dataBytes > kDataMax || (dataBytes & 3) ||
++-      (dataBytes ? (direction != 1 && direction != 2) : direction != 0)) return kIOReturnBadArgument;
++-  if (gHost.poisoned) return kIOReturnNotReady;
++-  if (read32 (gHost.hc, 0x58) != 0) {
++-    gHost.poisoned = true;
++-    gHost.ready = false;
++-    return recordTransport (kIOReturnBusy, *ocs);
++-  }
++-  if (read32 (gHost.hc, 0x20) & kUfsFatalStatus) {
++-    gHost.poisoned = true;
++-    gHost.ready = false;
++-    return recordTransport (kIOReturnIOError, *ocs);
++-  }
++-  gRootDiagnostic.command++;
++-  gRootDiagnostic.type = gHost.virt[kUcdOffset];
++-  gRootDiagnostic.lun = gHost.virt[kUcdOffset + 2];
++-  gRootDiagnostic.opcode = gHost.virt[kUcdOffset + (gRootDiagnostic.type == 1 ? 16 : 12)];
++-  gRootDiagnostic.scsi = 0xffff;
++-  gRootDiagnostic.response = 0;
++-  gRootDiagnostic.protocol = 0;
++-  gRootDiagnostic.residual = 0;
++-  gRootDiagnostic.sense = 0;
++-  uint8_t *utrd = gHost.virt;
++-  uint64_t ucdPhys = gHost.phys + kUcdOffset;
++-  uint32_t *words = reinterpret_cast<uint32_t *> (utrd);
++-  for (unsigned index = 0; index < 8; index++) {
++-    words[index] = 0;
++-  }
++-  words[0] = 0x10000000U | (direction << 25);
++-  words[2] = 0x0fU;
++-  words[4] = static_cast<uint32_t> (ucdPhys);
++-  words[5] = static_cast<uint32_t> (ucdPhys >> 32);
++-  words[6] = (512U >> 2) | ((kRspOffset >> 2) << 16);
++-  words[7] = (dataBytes ? 1U : 0U) | ((kPrdtOffset >> 2) << 16);
++-  if (dataBytes) {
++-    uint64_t dataPhys = gHost.phys + kDataOffset;
++-    uint32_t *prd = reinterpret_cast<uint32_t *> (gHost.virt + kUcdOffset + kPrdtOffset);
++-    prd[0] = static_cast<uint32_t> (dataPhys);
++-    prd[1] = static_cast<uint32_t> (dataPhys >> 32);
++-    prd[2] = 0;
++-    prd[3] = dataBytes - 1;
++-  }
++-  cacheCivac (gHost.virt, kDataOffset + dataBytes);
++-  hostWrite (0x20, 1);  // Acknowledge completion only; preserve error evidence.
++-  HardwareTransferPort port;
++-  clock_interval_to_deadline (timeoutUs, kMicrosecondScale, &port.deadline);
++-  hostWrite (0x58, 1);
++-  UfsTransferPoll state;
++-  UfsTransferEnd end = pollUfsTransfer (port, state);
++-  gRootDiagnostic.polls = state.polls;
++-  gRootDiagnostic.dbSeen = state.doorbellSeen;
++-  gRootDiagnostic.isSeen = state.interruptSeen;
++-  *ocs = state.ocs;
++-  if (end != UfsTransferEnd::Completed) {
++-    // No cancel/reset/retry: the controller may still own the buffer, even
++-    // with DB=0. Keep it allocated and prohibit all subsequent CPU writes.
++-    gHost.poisoned = true;
++-    gHost.ready = false;
++-    return recordTransport (end == UfsTransferEnd::Timeout ? kIOReturnTimeout : kIOReturnIOError, *ocs);
++-  }
++-  cacheInvalidate (gHost.virt, kDataOffset + dataBytes);
++-  gRootDiagnostic.response = loadBe32 (gHost.virt + kUcdOffset + kRspOffset);
++-  return recordTransport (*ocs == 0 ? kIOReturnSuccess : kIOReturnIOError, *ocs);
+++  return kIOReturnNotPermitted;
++ }
++ 
++ static bool hostClearUcd (void)
+diff --git a/tools/build-ios26-kernel.sh b/tools/build-ios26-kernel.sh
+index 119bf7f..0f6eff0 100644
+--- a/tools/build-ios26-kernel.sh
++++ b/tools/build-ios26-kernel.sh
+@@ -10,7 +10,25 @@ if [[ ! -f "$HOUJI_XNU/pexpert/pexpert/arm64/HOUJI.h" ||
+   echo "Prepare the iOS26 kernel and pinned HFS sources first" >&2
+   exit 1
+ fi
+-python3 "$task_root/tools/check-trial-bindings.py" "$HOUJI_XNU"
++if [[ ${1:-} == --ram-only && $# == 1 ]]; then
++  python3 - "$HOUJI_XNU" <<'PY'
++import json
++from pathlib import Path
++import sys
++
++tree = Path(sys.argv[1])
++source = json.loads((tree / '.houji-source.json').read_text())
++trial = tree / 'iokit/Kernel/houji-ufs-root'
++if (source.get('ram_only') is not True or not (trial / 'HoujiZapTrial.h').is_file()
++        or (trial / 'HoujiLogAllocation.h').exists()):
++    raise SystemExit('Prepare a RAM-only kernel with --ram-only-id and without logfs inputs')
++PY
++elif [[ $# == 0 ]]; then
++  python3 "$task_root/tools/check-trial-bindings.py" "$HOUJI_XNU"
++else
++  echo "Usage: build-ios26-kernel.sh [--ram-only]" >&2
++  exit 2
++fi
+ # The HID usage table is a local SDK input shared with the iOS16 build.
+ hid_header="$HOUJI_XNU/iokit/Kernel/arm/hid/IOHIDUsageTables.h"
+ if [[ ! -f "$hid_header" ]]; then
+@@ -26,7 +44,7 @@ export XNU_SRC="$HOUJI_XNU" XNU_ARCH=arm64e MACHINE=HOUJI
+ export RC_DARWIN_KERNEL_VERSION=25.6.0
+ bash "$HOUJI_REFERENCE/base/xnu-build.sh" -j"${HOUJI_JOBS:-8}" all HOUJI_STANDALONE_KERNEL=1
+ kernel="$HOUJI_XNU/BUILD/obj/mach.development.houji"
+-python3 - "$kernel" <<'PY'
++python3 - "$kernel" "${1:-}" <<'PY'
+ import struct, subprocess, sys
+ from pathlib import Path
+ kernel = Path(sys.argv[1])
+@@ -35,6 +53,10 @@ magic, cpu, subtype = struct.unpack_from('<III', data)
+ assert magic == 0xfeedfacf and cpu == 0x100000c and subtype & 0xffffff == 2
+ assert b'Darwin Kernel Version 25.6.0:' in data
+ assert subprocess.check_output(['xcrun', 'nm', '-u', str(kernel)]).strip() == b''
++if sys.argv[2] == '--ram-only':
++    for signature in (b'XNU LOG: COMMIT/FLUSH/READBACK PASS', b'HOUJI RECOVERY: BCB verified'):
++        if signature in data:
++            raise SystemExit('RAM-only kernel contains a physical log or BCB writer')
+ print('PASS: linked arm64e HOUJI / Darwin 25.6.0 kernel; no unresolved symbols')
+ PY
+ python3 "$task_root/checks/ios26-pac.py" "$kernel"
+diff --git a/tools/make-ios26-first-entry.py b/tools/make-ios26-first-entry.py
+index 7669a08..818ccbb 100644
+--- a/tools/make-ios26-first-entry.py
++++ b/tools/make-ios26-first-entry.py
+@@ -21,7 +21,7 @@ def first_entry_config(boot_args):
+     if not all(token in tokens for token in required):
+         raise ValueError('First-entry requires one CPU, RAM root and bounded recovery')
+     if any(name.startswith(('houji_gpu_', 'dadagpu', 'dadaadsp', 'dadatouch')) or
+-           name in ('gpu', 'adsp', 'dadascan', 'apfs_volume') for name in names):
++           name in ('gpu', 'adsp', 'dadascan', 'apfs_volume', 'houji_ufs_log') for name in names):
+         raise ValueError('No peripheral driver boot arguments in the first-entry profile')
+     if len(boot_args.encode()) > 1023 or '\0' in boot_args or '\n' in boot_args:
+         raise ValueError('Unexpected boot arguments')
+diff --git a/tools/prepare-ios26-sources.py b/tools/prepare-ios26-sources.py
+index 034e551..50a4a91 100644
+--- a/tools/prepare-ios26-sources.py
++++ b/tools/prepare-ios26-sources.py
+@@ -8,6 +8,7 @@ import shutil
+ import subprocess
+ import tarfile
+ import tempfile
++import uuid
+ 
+ ROOT = Path(__file__).resolve().parents[1]
+ 
+@@ -47,8 +48,13 @@ def main():
+     parser.add_argument('--hfs-upstream', type=Path, help='Pinned Apple HFS Git checkout, required for kernel')
+     parser.add_argument('--target-conditionals', type=Path, help='Optional local SDK TargetConditionals.h; stays in the private output')
+     parser.add_argument('--reference', type=Path, help='Pinned hakios Git checkout, required for kernel')
++    parser.add_argument('--ram-only-id', type=uuid.UUID,
++                        help='Fresh UUIDv4 shared by the RAM-only kernel and bootloader; no physical log allocation')
+     parser.add_argument('--output', required=True, type=Path, help='Must not exist')
+     args = parser.parse_args()
++    if args.ram_only_id is not None and (
++            args.ram_only_id.version != 4 or args.component == 'boot_manager'):
++        parser.error('--ram-only-id requires a UUIDv4 and the kernel or bootloader component')
+     output = args.output.resolve()
+     if output.exists():
+         parser.error('Output exists')
+@@ -91,6 +97,8 @@ def main():
+                 destination.parent.mkdir(parents=True, exist_ok=True)
+                 shutil.copy2(ROOT / reuse['overlay'] / name, destination)
+             apply(tree, ROOT / entry['reuse_patch'])
++            if args.ram_only_id is not None:
++                apply(tree, ROOT / 'kernel/ios26/patches/ram-only.patch')
+             hfs = profile['hfs']
+             hfs_source = temporary / 'hfs'
+             hfs_source.mkdir()
+@@ -107,17 +115,29 @@ def main():
+         else:
+             apply(tree, ROOT / entry['patch'])
+         shutil.copytree(ROOT / entry['overlay'], tree, dirs_exist_ok=True)
++        if args.ram_only_id is not None:
++            directory = tree / ('iokit/Kernel/houji-ufs-root' if args.component == 'kernel'
++                                else 'DarwinBootPkg/Driver')
++            header = directory / 'HoujiZapTrial.h'
++            identity = ', '.join(map(str, args.ram_only_id.bytes))
++            header.write_text(
++                '#pragma once\n#include <stdint.h>\n'
++                f'static const uint8_t kHoujiZapTrial[16] = {{{identity}}};\n',
++                encoding='ascii')
+         (tree / '.houji-source.json').write_text(json.dumps({
+             'profile': 'ios26', 'component': args.component,
+             'revision': upstream['revision'],
+             'architecture': 'arm64e' if args.component == 'kernel' else 'aarch64-uefi',
+             'payload_architecture': 'arm64e',
+             'hardware_verified': False, 'vendor_firmware_supplied': False,
++            'ram_only': args.ram_only_id is not None,
+         }, indent=2) + '\n')
+         shutil.move(str(tree), output)
+     print(f'Prepared iOS26 {args.component}: {output}')
+-    if args.component == 'kernel':
++    if args.component == 'kernel' and args.ram_only_id is None:
+         print('Local firmware and fresh trial headers must be supplied separately before building.')
++    elif args.component == 'kernel':
++        print('RAM-only source prepared with physical UFS disabled. Local firmware headers are still required.')
+ 
+ 
+ if __name__ == '__main__':

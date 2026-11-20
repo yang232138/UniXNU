@@ -1,0 +1,87 @@
+name: houji public iPhone 23G90 RAM kernel
+
+on:
+  push:
+    branches: [houji/ios26-public-ram]
+    paths:
+      - '.github/workflows/houji-public-ram.yml'
+      - 'ci/houji-public-ram/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 60
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      HOUJI_PUBLIC_REVISION: 98bc0960f96076de8e8d16efcfb0c0603b166b85
+      HOUJI_JOBS: '6'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Verify SDK and prepare pinned source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          bash ci/houji-public-ram/assemble.sh 2>&1 | tee evidence/assemble.log
+
+      - name: Verify the board firmware inputs
+        shell: bash
+        env:
+          HOUJI_SQE_A: ${{ secrets.HOUJI_PUBLIC_RAM_SQE_A }}
+          HOUJI_SQE_B: ${{ secrets.HOUJI_PUBLIC_RAM_SQE_B }}
+        run: |
+          set -euo pipefail
+          python3 ci/houji-public-ram/firmware.py 2>&1 | tee evidence/firmware.log
+
+      - name: Compile and verify the RAM-only arm64e kernel and PID1
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$RUNNER_TEMP/houji-public-ram"
+          export XNU_SRC="$base/xnu" XNU_ARCH=arm64e MACHINE=HOUJI RC_DARWIN_KERNEL_VERSION=25.6.0
+          sdk=$(xcrun --sdk macosx --show-sdk-path)
+          cp "$sdk/System/Library/Frameworks/Kernel.framework/Headers/IOKit/hid/IOHIDUsageTables.h" \
+            "$XNU_SRC/iokit/Kernel/arm/hid/IOHIDUsageTables.h"
+          bash "$base/hakios/base/xnu-deps/setup.sh" --stage1 2>&1 | tee evidence/setup-stage1.log
+          bash "$base/hakios/base/xnu-deps/setup.sh" --stage2 2>&1 | tee evidence/setup-stage2.log
+          HOUJI_XNU="$XNU_SRC" HOUJI_REFERENCE="$base/hakios" \
+            bash "$base/houji/tools/build-ios26-kernel.sh" --ram-only 2>&1 | tee evidence/kernel.log
+          python3 "$base/houji/tools/build-ios26-first-entry.py" --output "$base/hello.macho" \
+            2>&1 | tee evidence/pid1.log
+          cp "$base/hello.json" evidence/pid1.json
+
+      - name: Hash and encrypt compiled binaries
+        shell: bash
+        env:
+          HOUJI_ARTIFACT_SECRET: ${{ secrets.HOUJI_PUBLIC_RAM_ARTIFACT_KEY }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/houji-artifact-venv"
+          "$RUNNER_TEMP/houji-artifact-venv/bin/pip" -q install cryptography==50.0.2
+          "$RUNNER_TEMP/houji-artifact-venv/bin/python" ci/houji-public-ram/artifact.py
+
+      - name: Collect compiler diagnostics
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence
+          base="$RUNNER_TEMP/houji-public-ram"
+          for log in "$base/hakios/base/xnu-deps/"*.log; do
+            if [ -f "$log" ]; then
+              cp "$log" "evidence/hakios-$(basename "$log")"
+            fi
+          done
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: houji-public-23g90-ram-kernel-evidence
+          path: evidence
+          if-no-files-found: error
