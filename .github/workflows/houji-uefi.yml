@@ -19,6 +19,9 @@ on:
       probe_arm_init_marker:
         type: boolean
         default: false
+      probe_arm_vm_init_marker:
+        type: boolean
+        default: false
       houji_power_key:
         type: boolean
         default: false
@@ -185,12 +188,13 @@ jobs:
           echo "HOUJI_RAM_PAYLOAD=$RUNNER_TEMP/payload.img" >> "$GITHUB_ENV"
           echo "HOUJI_IPHONE26_AUTO_BOOT=1" >> "$GITHUB_ENV"
 
-      - name: Add two screen markers to the verified XNU entry
+      - name: Apply selected XNU boot markers
         if: inputs.iphone26 && inputs.probe_source_run
         env:
           HOUJI_ARTIFACT_KEY: ${{ secrets.HOUJI_IPHONE26_ARTIFACT_KEY }}
           HOUJI_PROBE_POST_MMU_RESET: ${{ inputs.probe_post_mmu_reset }}
           HOUJI_PROBE_ARM_INIT_MARKER: ${{ inputs.probe_arm_init_marker }}
+          HOUJI_PROBE_ARM_VM_INIT_MARKER: ${{ inputs.probe_arm_vm_init_marker }}
         run: |
           set -euo pipefail
           probe_args=()
@@ -199,6 +203,9 @@ jobs:
           fi
           if [ "$HOUJI_PROBE_ARM_INIT_MARKER" = true ]; then
             probe_args+=(--arm-init-marker)
+          fi
+          if [ "$HOUJI_PROBE_ARM_VM_INIT_MARKER" = true ]; then
+            probe_args+=(--arm-vm-init-marker)
           fi
           python3 tools/build-iphone26-entry-probe.py --unixnu "$RUNNER_TEMP/unixnu" \
             --payload "$HOUJI_RAM_PAYLOAD" "${probe_args[@]}" 2>&1 | tee out/houji-uefi/probe.log

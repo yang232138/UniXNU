@@ -1,19 +1,30 @@
 // SPDX-License-Identifier: BSD-2-Clause-Patent
-// Boot CPU at arm_init(boot_args *). Keep x0, x18, the stack and all
-// callee-saved registers. Restore the empty TTBR0 leaf before resuming XNU.
+// Boot CPU at arm_init(boot_args *) or before arm_vm_init(size, boot_args *).
+// Keep the call arguments, LR, x18, the stack and all callee-saved registers.
+// Restore the empty TTBR0 leaf before resuming XNU.
 .text
 .global _start
 _start:
-    ldr     x1, [x0, #0x28]
+.ifdef ARM_VM_INIT_MARKER
+    mov     x8, x1
+    bootargs .req x8
+.else
+    bootargs .req x0
+.endif
+    ldr     x1, [bootargs, #0x28]
     movz    x2, #0xfc40, lsl #16
     cmp     x1, x2
     b.ne    resume_entry
-    ldr     x2, [x0, #0x38]
+    ldr     x2, [bootargs, #0x38]
     movz    x3, #4800
     cmp     x2, x3
     b.ne    resume_entry
-    ldr     x2, [x0, #0x48]
+    ldr     x2, [bootargs, #0x48]
+.ifdef ARM_VM_INIT_MARKER
+    cmp     x2, #64
+.else
     cmp     x2, #32
+.endif
     b.lo    resume_entry
 
     mrs     x3, ttbr0_el1
@@ -40,9 +51,16 @@ _start:
     dsb     ish
     isb
 
-    // Paint 32 lines at 4800 bytes per line, over the top of the green band.
+    // Paint 32 lines at 4800 bytes per line. Cyan starts below orange.
+.ifdef ARM_VM_INIT_MARKER
+    add     x1, x1, #0x25, lsl #12
+    add     x1, x1, #0x800
+    movz    w6, #0xffff
+    movk    w6, #0xff00, lsl #16
+.else
     movz    w6, #0xa500
     movk    w6, #0xffff, lsl #16
+.endif
     movz    w7, #0x9600
 1:
     str     w6, [x1], #4
@@ -55,5 +73,9 @@ _start:
     dsb     ish
     isb
 resume_entry:
+.ifdef ARM_VM_INIT_MARKER
+    mov     x1, x8
+.else
     pacibsp
+.endif
     b       resume
