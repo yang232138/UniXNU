@@ -1,0 +1,12 @@
+schema_version = 2
+
+[board]
+name = "houji"
+soc = "SM8650"
+soc_source = "sm8650-houji"
+os_profile = "ios-26.6.2-23G90"
+
+[kernel]
+defconfig = "houji_iphone26_defconfig"
+config_fragments = ["arch:configs/common.config"]
+patch_series = ["arch:patches/xnu/series"]

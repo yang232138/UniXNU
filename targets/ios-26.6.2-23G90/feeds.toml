@@ -1,0 +1,4 @@
+[[source]]
+name = "sm8650-houji"
+kind = "soc"
+local = "soc"

@@ -2,6 +2,9 @@
   "format": 1,
   "target": "houji",
   "validated_build": "r222",
+  "iphone_ios26": {
+    "unixnu_revision": "8542980d02b4d2cc5c32ee3542de1760b2562aac"
+  },
   "components": {
     "kernel": {
       "repository": "https://github.com/apple-oss-distributions/xnu.git",
