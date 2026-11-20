@@ -66,7 +66,6 @@ jobs:
                   raise SystemExit(f"{name}: expected {pin}, got {revision}")
               shutil.copytree(source, root / "uefi" / name, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
           PY
-          git -C "$uefi/Mu_Basecore" apply "$GITHUB_WORKSPACE/uefi/patches/Mu_Basecore.patch"
           core_revision=$(python3 -c 'import json; print(json.load(open("sources.lock.json"))["iphone_ios26"]["unixnu_revision"])')
           fetch_pin "$core" https://github.com/UniXNU/UniXNU.git "$core_revision"
           git -C "$core" submodule update --init --depth 1 -- drivers/DarwinBoot

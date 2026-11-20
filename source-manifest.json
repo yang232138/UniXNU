@@ -2,7 +2,7 @@
   "format": 1,
   "files": {
     ".gitattributes": "54463d30eaaaced13a2ae64af1df400a1db12ea5fd9f0b3dd8a4ca624bbe1628",
-    ".github/workflows/houji-uefi.yml": "793ec06e50e79a29caa26683248d1b81fd5cf19915182de1f7376df433440cb3",
+    ".github/workflows/houji-uefi.yml": "77107a188341bc7ec0c1c674a88226c639759ab826df527f06130f8170ee38ee",
     ".github/workflows/iphone-ios26-kernel.yml": "abea2ba2fd39852189e6e3eef615d9af76baf7ec52995463b0a74902605fc64c",
     ".github/workflows/source-checks.yml": "3309bc10d4f5d38290cd816dac95da26e1d7378acc371da511ca6c24cb1e133a",
     ".gitignore": "5f36ab0d08524e51a8d966eee0064b1651f3c3ffe2e08ac4384c59a0dce475eb",
