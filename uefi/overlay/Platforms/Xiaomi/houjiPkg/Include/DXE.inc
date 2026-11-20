@@ -28,4 +28,7 @@
   INF MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
   INF MdeModulePkg/Universal/BdsDxe/BdsDxe.inf
   INF UniXNUPkg/Driver/UniXNUDxe/UniXNUDxe.inf
+!if $(WITH_HOUJI_IPHONE26_AUTO_BOOT) == TRUE
+  INF DarwinBootPkg/Driver/DarwinBoot.inf
+!endif
   INF UniXNUPkg/Application/UniXNU/UniXNU.inf

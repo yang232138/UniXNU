@@ -1,0 +1,37 @@
+/dts-v1/;
+
+/ {
+    model = "Xiaomi 14";
+    compatible = "xiaomi,houji", "qcom,sm8650", "AppleARM";
+    #address-cells = <2>;
+    #size-cells = <2>;
+
+    // Xiaomi's base DT leaves DRAM blank for the bootloader. XNU receives
+    // the allocated 256 MiB window through DarwinBoot's boot_args.
+    memory@0 {
+        device_type = "memory";
+        reg = <0 0 0 0>;
+    };
+
+    cpus {
+        #address-cells = <2>;
+        #size-cells = <0>;
+        timebase-frequency = <19200000>;
+
+        cpu@0 {
+            device_type = "cpu";
+            compatible = "qcom,kryo";
+            reg = <0 0>;
+        };
+    };
+
+    intc@17100000 {
+        compatible = "arm,gic-v3";
+        unixnu,adt-name = "intc";
+        interrupt-controller;
+        #address-cells = <0>;
+        #interrupt-cells = <3>;
+        reg = <0 0x17100000 0 0x10000>, <0 0x17180000 0 0x200000>;
+        redistributor-stride = <0 0x40000>;
+    };
+};

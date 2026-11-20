@@ -19,6 +19,13 @@ if [ -n "${HOUJI_RAM_PAYLOAD:-}" ]; then
   python3 "$port_root/scripts/stage-ram-payload.py" --payload "$HOUJI_RAM_PAYLOAD" --uefi "$uefi_root"
   extra_defines+=(-D WITH_PAYLOAD=1)
 fi
+if [ "${HOUJI_IPHONE26_AUTO_BOOT:-0}" = 1 ]; then
+  if [ -z "${HOUJI_RAM_PAYLOAD:-}" ] || [ -z "${4:-}" ]; then
+    echo "iPhone 26 first entry requires the RAM payload and DarwinBoot" >&2
+    exit 2
+  fi
+  extra_defines+=(-D WITH_HOUJI_IPHONE26_AUTO_BOOT=TRUE)
+fi
 # Explicit experimental profiles; default stage-1 builds remain unchanged.
 for feature in HIGH_RAM ROOT_RAM RAM_PROBE STORAGE_PROBE CLOCK_MMIO UFS_MMIO; do
   variable="HOUJI_${feature}"

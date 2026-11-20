@@ -1,11 +1,17 @@
 name: houji RAM-only UEFI
 
 on:
-  push:
-    branches: [houji/ios26-iphone-bringup]
-    paths:
-      - '.github/workflows/houji-uefi.yml'
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      iphone26:
+        type: boolean
+        default: false
+    secrets:
+      HOUJI_305_UEFI_INPUT_20261120:
+        required: true
+      HOUJI_IPHONE26_ARTIFACT_KEY:
+        required: false
 
 permissions:
   contents: read
@@ -113,6 +119,37 @@ jobs:
           PY
           python3 archive/scripts/check-uefi.py --uefi "$RUNNER_TEMP/uefi" --vendor "$RUNNER_TEMP/vendor"
 
+      - name: Download the verified kernel payload
+        if: inputs.iphone26
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: houji-23G90-kernel-evidence
+          path: out/iphone26-dependency
+
+      - name: Verify and stage the read-only RAM volume
+        if: inputs.iphone26
+        env:
+          HOUJI_ARTIFACT_KEY: ${{ secrets.HOUJI_IPHONE26_ARTIFACT_KEY }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, json, os, shutil
+          from pathlib import Path
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          encrypted, = Path("out/iphone26-dependency").rglob("payload.img.aesgcm")
+          blob = encrypted.read_bytes()
+          key = base64.b64decode(os.environ["HOUJI_ARTIFACT_KEY"], validate=True)
+          data = AESGCM(key).decrypt(blob[:12], blob[12:], b"payload.img")
+          receipt = encrypted.with_name("payload.json")
+          if hashlib.sha256(data).hexdigest() != json.loads(receipt.read_text())["sha256"]:
+              raise SystemExit("Decrypted payload digest mismatch")
+          payload = Path(os.environ["RUNNER_TEMP"]) / "payload.img"
+          payload.write_bytes(data)
+          shutil.copyfile(receipt, payload.with_suffix(".json"))
+          PY
+          echo "HOUJI_RAM_PAYLOAD=$RUNNER_TEMP/payload.img" >> "$GITHUB_ENV"
+          echo "HOUJI_IPHONE26_AUTO_BOOT=1" >> "$GITHUB_ENV"
+
       - name: Compile RAM-only firmware and DarwinBoot
         run: |
           set -euo pipefail
@@ -129,6 +166,8 @@ jobs:
           root = Path(os.environ["RUNNER_TEMP"])
           build = root / "uefi/Build/houjiPkg/DEBUG_CLANGPDB"
           files = [build / "FV/SILICIUM_UEFI.fd", build / "AARCH64/DarwinBoot.efi"]
+          if os.environ.get("HOUJI_IPHONE26_AUTO_BOOT") == "1":
+              files.append(build / "AARCH64/HoujiRamDiskDxe.efi")
           out = Path("out/houji-uefi")
           key = (root / "artifact.key").read_bytes()
           receipt = {}

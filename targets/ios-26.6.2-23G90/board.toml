@@ -17,3 +17,16 @@ archives = [
   "component:ArmCpu",
   "build-libpthread-kernel.py",
 ]
+
+[device_tree]
+source = "device:houji-first-entry.dts"
+
+[payload]
+title = "iPhone iOS 26.6.2 XNU"
+timeout = 5
+volume = "HOUJIESP"
+size_mib = 64
+kernel_args = ["-v", "serial=3", "debug=0x14e", "keepsyms=1", "cpus=1"]
+
+[payload.adt]
+owned_memory_size = "0x10000000"
