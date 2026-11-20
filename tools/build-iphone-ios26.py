@@ -25,7 +25,40 @@ def command(*args, cwd=None, capture=False, env=None):
     ).stdout
 
 
-def audit_apfs(unixnu, output, board, kernel):
+def build_release_reference(unixnu, work, output, board, build_env):
+    tree = work / "tree"
+    records = tree / "build/xnu/fileset-reference"
+    reference = records / "mach.release.bcm2837.unstripped.noctf"
+    evidence = output / "evidence"
+    evidence.mkdir(parents=True, exist_ok=True)
+    os_profile = board["os"]
+    versions = {
+        "UNIXNU_IOS_VERSION": os_profile["ios_version"],
+        "UNIXNU_XNU_DARWIN": os_profile["darwin"],
+        "UNIXNU_XNU_VERSION": os_profile["xnu_version"],
+    }
+    env = dict(build_env, UNIXNU_XNU_TARGET=os_profile["target"], **versions)
+    try:
+        command(sys.executable, unixnu / "scripts/build-fileset-release-reference.py",
+                "--tree", tree, "--lto", cwd=tree, env=env)
+    finally:
+        for directory in sorted(records.glob("lto-*")):
+            for name in ("inputs.json", "lto-command.json", "lto-build.log"):
+                record = directory / name
+                if record.is_file():
+                    shutil.copy2(record, evidence / f"reference-{directory.name}-{name}")
+
+    receipt_path = reference.with_suffix(".json")
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    digest = hashlib.sha256(reference.read_bytes()).hexdigest()
+    if (receipt["sha256"] != digest or receipt["inputs"]["mode"] != "lto"
+            or receipt["inputs"]["target"] != os_profile["target"] or receipt["inputs"]["versions"] != versions):
+        raise SystemExit("The RELEASE reference output differs from its build receipt")
+    shutil.copy2(receipt_path, evidence / "apfs-release-reference.json")
+    return reference
+
+
+def audit_apfs(unixnu, output, board, kernel, reference=None):
     sys.path.insert(0, str(unixnu / "scripts"))
     prelink = unixnu / "kits/XnuPrelink"
     sys.path.insert(0, str(prelink))
@@ -71,9 +104,14 @@ def audit_apfs(unixnu, output, board, kernel):
         }
         print(f"Fileset input: {split_count} split-segment records. APFS closure: {len(closure)} entries.", flush=True)
         candidate = stage / "candidate.macho"
+        reference_args = []
+        if reference is not None:
+            receipt["reference_sha256"] = hashlib.sha256(reference.read_bytes()).hexdigest()
+            reference_args = ["--fileset-reference", reference]
         try:
             command(sys.executable, prelink / "emit_prelink.py", "--kernel", kernel,
-                    "--prelinked", donor, "--root", root, "--slide", "0", "--output", candidate)
+                    "--prelinked", donor, "--root", root, "--slide", "0", "--output", candidate,
+                    *reference_args)
         finally:
             for suffix, filename in ((".json", "apfs-prelink.json"), (".map.json", "apfs-pairing.json")):
                 report = candidate.with_suffix(suffix)
@@ -91,7 +129,11 @@ def main():
     parser.add_argument("--check", action="store_true", help="Resolve the profile and defconfig offline")
     parser.add_argument("--apfs-audit", action="store_true",
                         help="Build chained-fixup XNU and run strict APFS prelink without packaging a boot image")
+    parser.add_argument("--apfs-reference", action="store_true",
+                        help="Build and use an isolated same-profile RELEASE LTO reference for the APFS audit")
     args = parser.parse_args()
+    if args.apfs_reference and not args.apfs_audit:
+        parser.error("--apfs-reference requires --apfs-audit")
 
     pin = json.loads((ROOT / "sources.lock.json").read_text(encoding="utf-8"))["iphone_ios26"]
     unixnu = args.unixnu.resolve()
@@ -150,7 +192,8 @@ def main():
     command("file", kernel)
     print(f"arm64e MH_EXECUTE sha256 {digest}", flush=True)
     if args.apfs_audit:
-        audit_apfs(unixnu, output, board, kernel)
+        reference = build_release_reference(unixnu, work, output, board, build_env) if args.apfs_reference else None
+        audit_apfs(unixnu, output, board, kernel, reference=reference)
 
 
 if __name__ == "__main__":

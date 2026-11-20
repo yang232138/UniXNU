@@ -57,7 +57,7 @@ jobs:
           set -euo pipefail
           audit=()
           if [ "$GITHUB_REF_NAME" = houji/ios26-iphone-apfs-audit ]; then
-            audit=(--apfs-audit)
+            audit=(--apfs-audit --apfs-reference)
             export UNIXNU_IPSW_JOBS=8
           fi
           python3 -u tools/build-iphone-ios26.py --unixnu "$RUNNER_TEMP/UniXNU" --output out/iphone26 "${audit[@]}" 2>&1 \
