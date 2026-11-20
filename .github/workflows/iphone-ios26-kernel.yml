@@ -1,8 +1,8 @@
-name: houji iPhone iOS 26 first entry
+name: houji iPhone iOS 26 kernel
 
 on:
   push:
-    branches: [houji/ios26-iphone-bringup]
+    branches: [houji/ios26-iphone-bringup, houji/ios26-iphone-apfs-audit]
     paths:
       - '.github/workflows/iphone-ios26-kernel.yml'
       - '.github/workflows/houji-uefi.yml'
@@ -55,10 +55,16 @@ jobs:
       - name: Build arm64e XNU
         run: |
           set -euo pipefail
-          python3 -u tools/build-iphone-ios26.py --unixnu "$RUNNER_TEMP/UniXNU" --output out/iphone26 2>&1 \
+          audit=()
+          if [ "$GITHUB_REF_NAME" = houji/ios26-iphone-apfs-audit ]; then
+            audit=(--apfs-audit)
+            export UNIXNU_IPSW_JOBS=8
+          fi
+          python3 -u tools/build-iphone-ios26.py --unixnu "$RUNNER_TEMP/UniXNU" --output out/iphone26 "${audit[@]}" 2>&1 \
             | tee out/iphone26/evidence/compile.txt
 
       - name: Build and verify the unattended RAM payload
+        if: github.ref_name == 'houji/ios26-iphone-bringup'
         env:
           HOUJI_ARTIFACT_KEY: ${{ secrets.HOUJI_IPHONE26_ARTIFACT_KEY }}
         run: |
@@ -122,6 +128,7 @@ jobs:
             out/iphone26/houji/**/xnu-inputs.json
 
   firmware:
+    if: github.ref_name == 'houji/ios26-iphone-bringup'
     needs: kernel
     uses: ./.github/workflows/houji-uefi.yml
     with:
