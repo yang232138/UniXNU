@@ -4,7 +4,7 @@
     ".gitattributes": "54463d30eaaaced13a2ae64af1df400a1db12ea5fd9f0b3dd8a4ca624bbe1628",
     ".github/workflows/houji-iphone26-entry-probe.yml": "635c794eaa8672525466e6f486a32520a783515122531463ef3eb7667fe850ba",
     ".github/workflows/houji-uefi.yml": "d87ec50427d4fb855c972e8d2e288c53a3d1005396213b625958a24db7b7cb0a",
-    ".github/workflows/iphone-ios26-kernel.yml": "1c0834328ba0c1f4a48f48a2b0434a351db6f749afece2f6b779b7e0ad440965",
+    ".github/workflows/iphone-ios26-kernel.yml": "2251aa7e8028feaffd524f3ca86fa6c9e580f12d935d741f4e9289ad6209d65d",
     ".github/workflows/source-checks.yml": "3309bc10d4f5d38290cd816dac95da26e1d7378acc371da511ca6c24cb1e133a",
     ".gitignore": "5f36ab0d08524e51a8d966eee0064b1651f3c3ffe2e08ac4384c59a0dce475eb",
     "AGENTS.md": "830a6e98c687889e4262c30d77643db12e035ef5a21f4d7659f8f527dc469e10",

@@ -130,6 +130,9 @@ jobs:
   firmware:
     if: github.ref_name == 'houji/ios26-iphone-bringup'
     needs: kernel
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/houji-uefi.yml
     with:
       iphone26: true
