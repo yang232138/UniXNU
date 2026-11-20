@@ -78,6 +78,8 @@ def audit_apfs(unixnu, output, board, kernel, reference=None):
     source = Ipsw(SimpleNamespace(board=board, out_root=output), board["ipsw"]["url"])
     donor_member = source.extract("KernelCache")
     root = "com.apple.filesystems.apfs"
+    # APFS waits for the original AppleImage4 IOKit service on signed snapshot mounts.
+    roots = (root, "com.apple.security.AppleImage4")
     evidence = output / "evidence"
     evidence.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="iphone26-apfs-", dir=output) as stage:
@@ -99,7 +101,7 @@ def audit_apfs(unixnu, output, board, kernel, reference=None):
             raise SystemExit("The decompressed donor differs from the pinned iPhone arm64e fileset")
         if reviewed["inputs"]["kernelcache_sha256"] != donor_digest:
             raise SystemExit("Reviewed APFS symbols belong to another kernelcache")
-        closure = sorted(dependency_closure(Image(donor_bytes), [root]))
+        closure = sorted(dependency_closure(Image(donor_bytes), roots))
         receipt = {
             "iphone": board["ipsw"]["product"],
             "build": board["ipsw"]["build"],
@@ -107,6 +109,7 @@ def audit_apfs(unixnu, output, board, kernel, reference=None):
             "native_sha256": hashlib.sha256(native_bytes).hexdigest(),
             "split_segment_records": split_count,
             "root": root,
+            "roots": roots,
             "closure": closure,
             "reviewed_symbols_sha256": hashlib.sha256(reviewed_bytes).hexdigest(),
             "reviewed_symbol_count": len(reviewed["functions"]),
@@ -118,9 +121,10 @@ def audit_apfs(unixnu, output, board, kernel, reference=None):
         if reference is not None:
             receipt["reference_sha256"] = hashlib.sha256(reference.read_bytes()).hexdigest()
             reference_args = ["--fileset-reference", reference]
+        root_args = [arg for identifier in roots for arg in ("--root", identifier)]
         try:
             command(sys.executable, prelink / "emit_prelink.py", "--kernel", kernel,
-                    "--prelinked", donor, "--root", root, "--slide", "0", "--output", candidate,
+                    "--prelinked", donor, *root_args, "--slide", "0", "--output", candidate,
                     *reference_args)
         finally:
             for suffix, filename in ((".json", "apfs-prelink.json"), (".map.json", "apfs-pairing.json")):

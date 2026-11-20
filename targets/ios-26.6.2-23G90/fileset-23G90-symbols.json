@@ -12,6 +12,27 @@
       "evidence": "Uses the second argument as the gate, runs the mapped gate destruction checks, and never frees the gate allocation. This is the rw gate destroy wrapper. osfmk/kern/locks.c:3159."
     },
     {
+      "original": "0xfffffe000a6d8f1c",
+      "original_size": 56,
+      "original_sha256": "2cfbdbaeaef679e9b8e8f1e0944e192d14b8b8dabd6933a9d51074cc298b55ac",
+      "native_symbol": "_lck_mtx_gate_alloc_init",
+      "evidence": "Both implementations ignore the mutex argument, allocate from KT_GATE with wait and no-fail flags, zero the gate, and set its initialized reference count and type. Source: osfmk/kern/locks.c."
+    },
+    {
+      "original": "0xfffffe000a6d91e8",
+      "original_size": 308,
+      "original_sha256": "4abd67bcd0c6c54ff83df73e76bdde0526672f942197b91c2ec76dcee22e12bb",
+      "native_symbol": "_lck_mtx_gate_try_close",
+      "evidence": "The second argument is the gate. It attempts to install the current thread as holder and returns KERN_SUCCESS or KERN_FAILURE when another thread already holds it. Source: osfmk/kern/locks.c."
+    },
+    {
+      "original": "0xfffffe000a6d931c",
+      "original_size": 284,
+      "original_sha256": "357692ebe1549ee5a33292a3b6a864f9b272e31f8749cbbcc8898184dad5dfc0",
+      "native_symbol": "_lck_mtx_gate_close",
+      "evidence": "The second argument is the gate. This void variant attempts to install the current thread as holder and panics if the gate is already held. Source: osfmk/kern/locks.c."
+    },
+    {
       "original": "0xfffffe000a6d9438",
       "original_size": 12,
       "original_sha256": "9402b1c87437c50432f104a3340aa803d3e6e8d7974a146ede566f10e306266c",
@@ -59,6 +80,13 @@
       "original_sha256": "f1af82d101a3cacbfbc14ce825902314c70e6f3d1ad52658a000d193bb6e36d3",
       "native_symbol": "_upl_dirty_page",
       "evidence": "Tests nonzero phys_addr and extracts bit 2 of the flags word, the dirty bit in the 8-byte UPL ABI. osfmk/vm/vm_pageout.c:10404 and osfmk/mach/memory_object_types.h:739."
+    },
+    {
+      "original": "0xfffffe000a837cac",
+      "original_size": 84,
+      "original_sha256": "5b28f3d5691795fb9126f557f4b98825d3f7b062b38af2972d6607c5dc2f94cc",
+      "native_symbol": "_cpu_to_processor",
+      "evidence": "Indexes the 16-byte CpuDataEntries array by logical CPU ID and reads cpu_data_vaddr at offset 8. A null entry returns null, otherwise the function adds the local per-CPU processor offset. The WatchdogTimer caller passes the result to processor_info. Source: osfmk/arm/cpu_common.c:770."
     },
     {
       "original": "0xfffffe000a87630c",
@@ -124,6 +152,20 @@
       "evidence": "BTI and a tail branch to the mapped uiomove64. The source wrapper preserves x0/x1/x2 and forwards the pointer as addr64_t. bsd/kern/kern_subr.c:227."
     },
     {
+      "original": "0xfffffe000abd8a44",
+      "original_size": 128,
+      "original_sha256": "6a60420abb167cd0490c14ac86d48fd70d4112284df11dde1489d7b4921c0078",
+      "native_symbol": "_sysctl_handle_opaque",
+      "evidence": "Takes the request as the fourth argument and sign-extends the third argument as the byte count. Both use oldfunc and newfunc at offsets 0x28 and 0x48 with PAC discriminator 0x6827. Source: bsd/kern/kern_newsysctl.c."
+    },
+    {
+      "original": "0xfffffe000abf5884",
+      "original_size": 240,
+      "original_sha256": "507186c361bca1935c2c6ab1f8bb69e2904058fc5fe200c0e32cbbfdc61c2571",
+      "native_symbol": "_code_signing_configuration",
+      "evidence": "Release-publishes initialized monitor type and configuration flags, then stores the actual 32-bit values to the two optional output pointers. The original iPhone returns TXM and the houji implementation returns its compiled monitor type. Source: bsd/kern/kern_codesigning.c."
+    },
+    {
       "original": "0xfffffe000adf2164",
       "original_size": 40,
       "original_sha256": "9128c527e2274be1c86889c9e538f6a2b1041517fd46c2d71a00945e22450866",
@@ -136,6 +178,13 @@
       "original_sha256": "7b4649bc8eb8ed3ae87fb5efc6a734390f930bb9ee32b58efc1482d1265ef750",
       "native_symbol": "__ZN12IODMACommand12OutputHost64EPS_NS_9Segment64EPvj",
       "evidence": "Stores the two 64-bit Segment64 fields in host byte order at output index times 16 and returns true. iokit/Kernel/IODMACommand.cpp:1700."
+    }
+  ],
+  "data": [
+    {
+      "original": "0xfffffe000b256f10",
+      "native_symbol": "_gIOAllCPUInitializedKey",
+      "evidence": "Both kernels' IOService::initialize intern the exact IOAllCPUInitialized string with OSSymbol::withCStringNoCopy and store the returned pointer in this slot. AppleARMCPU publishes this resource and AppleARMWatchdogTimer matches it. Source: iokit/Kernel/IOService.cpp and iokit/Kernel/arm/AppleARMSMP.cpp."
     }
   ]
 }
