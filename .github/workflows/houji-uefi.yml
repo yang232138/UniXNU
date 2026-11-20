@@ -75,6 +75,9 @@ jobs:
             -o "$RUNNER_TEMP/basetools.tar.gz"
           echo "a866e053855511985d1d73987024948c04add218530015b8e3c7af5b0996f6f4  $RUNNER_TEMP/basetools.tar.gz" | sha256sum -c
           tar -xf "$RUNNER_TEMP/basetools.tar.gz" -C "$RUNNER_TEMP" basetools/Linux-x86
+          # The pinned PosixLike wrappers resolve C tools through this directory.
+          ln -s "$RUNNER_TEMP/basetools/Linux-x86" "$uefi/Mu_Basecore/BaseTools/Source/C/bin"
+          test -x "$uefi/Mu_Basecore/BaseTools/Source/C/bin/GenSec"
           echo "$RUNNER_TEMP/basetools/Linux-x86" >> "$GITHUB_PATH"
           {
             git rev-parse HEAD
