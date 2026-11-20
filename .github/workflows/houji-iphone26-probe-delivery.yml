@@ -1,0 +1,42 @@
+name: houji iOS 26 entry probe encrypted delivery
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  package:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout packaging code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install cryptography
+        run: |
+          python3 -m venv "$RUNNER_TEMP/probe-python"
+          "$RUNNER_TEMP/probe-python/bin/pip" install 'cryptography==46.0.4'
+      - name: Download pinned evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: houji-305-uefi-evidence
+          run-id: '44673296323'
+          repository: yang232138/UniXNU
+          github-token: ${{ github.token }}
+          path: evidence
+      - name: Package owner-encrypted boot image
+        env:
+          HOUJI_VENDOR_BUNDLE: ${{ secrets.HOUJI_305_UEFI_INPUT_20261120 }}
+          HOUJI_ARTIFACT_KEY: ${{ secrets.HOUJI_IPHONE26_ARTIFACT_KEY }}
+        run: |
+          "$RUNNER_TEMP/probe-python/bin/python" tools/package-houji-entry-probe.py \
+            --artifact-dir evidence --outdir out/encrypted \
+            --recipient-public-key '97e7c7546ab6224502177a244d877a012e1548ec6fc5ec6ec6abe9d313129d21'
+      - name: Upload only encrypted output
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: houji-iphone26-entry-probe-encrypted
+          path: |
+            out/encrypted/houji-xnu-entry-probe.img.enc
+            out/encrypted/receipt.json
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
