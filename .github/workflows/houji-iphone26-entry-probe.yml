@@ -1,0 +1,24 @@
+name: houji XNU entry probe
+
+on:
+  push:
+    branches: [houji/ios26-iphone-entry-probe]
+    paths:
+      - '.github/workflows/houji-iphone26-entry-probe.yml'
+      - '.github/workflows/houji-uefi.yml'
+      - 'tools/build-iphone26-entry-probe.py'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  firmware:
+    uses: ./.github/workflows/houji-uefi.yml
+    with:
+      iphone26: true
+      probe_source_run: '44671105089'
+      probe_source_sha256: '183cf3063a8938abe7ff1ea980d422f93c04395a5d2d7c5f8d6e1b0be83f85ee'
+    secrets:
+      HOUJI_305_UEFI_INPUT_20261120: ${{ secrets.HOUJI_305_UEFI_INPUT_20261120 }}
+      HOUJI_IPHONE26_ARTIFACT_KEY: ${{ secrets.HOUJI_IPHONE26_ARTIFACT_KEY }}

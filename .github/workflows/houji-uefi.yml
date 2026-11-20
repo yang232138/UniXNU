@@ -7,6 +7,12 @@ on:
       iphone26:
         type: boolean
         default: false
+      probe_source_run:
+        type: string
+        default: ''
+      probe_source_sha256:
+        type: string
+        default: ''
     secrets:
       HOUJI_305_UEFI_INPUT_20261120:
         required: true
@@ -15,6 +21,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   firmware:
@@ -26,12 +33,17 @@ jobs:
           persist-credentials: false
 
       - name: Verify repository and prepare build tools
+        env:
+          HOUJI_PROBE_SOURCE_RUN: ${{ inputs.probe_source_run }}
         run: |
           set -euo pipefail
           mkdir -p out/houji-uefi
           python3 tools/check-source-tree.py
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends clang llvm lld make gcc uuid-dev nasm acpica-tools
+          if [ -n "$HOUJI_PROBE_SOURCE_RUN" ]; then
+            sudo apt-get install -y --no-install-recommends mtools
+          fi
           python3 -m venv "$RUNNER_TEMP/python"
           "$RUNNER_TEMP/python/bin/pip" install antlr4-python3-runtime==4.13.2 cryptography
           echo "$RUNNER_TEMP/python/bin" >> "$GITHUB_PATH"
@@ -120,16 +132,26 @@ jobs:
           python3 archive/scripts/check-uefi.py --uefi "$RUNNER_TEMP/uefi" --vendor "$RUNNER_TEMP/vendor"
 
       - name: Download the verified kernel payload
-        if: inputs.iphone26
+        if: inputs.iphone26 && !inputs.probe_source_run
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: houji-23G90-kernel-evidence
           path: out/iphone26-dependency
 
+      - name: Download the previously tested first-entry payload
+        if: inputs.iphone26 && inputs.probe_source_run
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: houji-23G90-kernel-evidence
+          path: out/iphone26-dependency
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.probe_source_run }}
+
       - name: Verify and stage the read-only RAM volume
         if: inputs.iphone26
         env:
           HOUJI_ARTIFACT_KEY: ${{ secrets.HOUJI_IPHONE26_ARTIFACT_KEY }}
+          HOUJI_PROBE_SOURCE_SHA256: ${{ inputs.probe_source_sha256 }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -141,14 +163,39 @@ jobs:
           key = base64.b64decode(os.environ["HOUJI_ARTIFACT_KEY"], validate=True)
           data = AESGCM(key).decrypt(blob[:12], blob[12:], b"payload.img")
           receipt = encrypted.with_name("payload.json")
-          if hashlib.sha256(data).hexdigest() != json.loads(receipt.read_text())["sha256"]:
+          digest = hashlib.sha256(data).hexdigest()
+          if digest != json.loads(receipt.read_text())["sha256"]:
               raise SystemExit("Decrypted payload digest mismatch")
+          required = os.environ["HOUJI_PROBE_SOURCE_SHA256"]
+          if required and digest != required:
+              raise SystemExit("The previously tested payload digest differs")
           payload = Path(os.environ["RUNNER_TEMP"]) / "payload.img"
           payload.write_bytes(data)
           shutil.copyfile(receipt, payload.with_suffix(".json"))
           PY
           echo "HOUJI_RAM_PAYLOAD=$RUNNER_TEMP/payload.img" >> "$GITHUB_ENV"
           echo "HOUJI_IPHONE26_AUTO_BOOT=1" >> "$GITHUB_ENV"
+
+      - name: Add two screen markers to the verified XNU entry
+        if: inputs.iphone26 && inputs.probe_source_run
+        env:
+          HOUJI_ARTIFACT_KEY: ${{ secrets.HOUJI_IPHONE26_ARTIFACT_KEY }}
+        run: |
+          set -euo pipefail
+          python3 tools/build-iphone26-entry-probe.py --unixnu "$RUNNER_TEMP/unixnu" \
+            --payload "$HOUJI_RAM_PAYLOAD" 2>&1 | tee out/houji-uefi/probe.log
+          python3 - <<'PY'
+          import base64, os, shutil
+          from pathlib import Path
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          payload = Path(os.environ["HOUJI_RAM_PAYLOAD"])
+          out = Path("out/houji-uefi")
+          nonce = os.urandom(12)
+          key = base64.b64decode(os.environ["HOUJI_ARTIFACT_KEY"], validate=True)
+          encrypted = AESGCM(key).encrypt(nonce, payload.read_bytes(), b"payload.img")
+          (out / "probe-payload.img.aesgcm").write_bytes(nonce + encrypted)
+          shutil.copyfile(payload.with_suffix(".json"), out / "probe-payload.json")
+          PY
 
       - name: Compile RAM-only firmware and DarwinBoot
         run: |

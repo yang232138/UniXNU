@@ -2,7 +2,8 @@
   "format": 1,
   "files": {
     ".gitattributes": "54463d30eaaaced13a2ae64af1df400a1db12ea5fd9f0b3dd8a4ca624bbe1628",
-    ".github/workflows/houji-uefi.yml": "5eddf38220cf2bde2ce95c5433e3d4ebca4d8f3b5b77518e949fbfa3c1103b07",
+    ".github/workflows/houji-iphone26-entry-probe.yml": "ceee8bb4330ce694cb5b521e90873320c327d69662c7d154d686e5f4bf4b8cbf",
+    ".github/workflows/houji-uefi.yml": "ef0bb72887ae643f9293e05f52b1e173b45e7d2f2e667f4a78d0afee842fb6e0",
     ".github/workflows/iphone-ios26-kernel.yml": "f48b43c6779f3a8fe6234e4966af20a46976ade24cb1b0463affc46a21a833eb",
     ".github/workflows/source-checks.yml": "3309bc10d4f5d38290cd816dac95da26e1d7378acc371da511ca6c24cb1e133a",
     ".gitignore": "5f36ab0d08524e51a8d966eee0064b1651f3c3ffe2e08ac4384c59a0dce475eb",
@@ -2132,6 +2133,7 @@
     "tools/analyze-gpu-issuer.py": "94643293e145de46001f2612fa11cfd89199f71c88572bac3099e8871abfb060",
     "tools/analyze-gpu-stages.py": "9ad43ee7f49803731c9bffeb91dd4dd23ce4f1eba32245d4fe08bee54425aae2",
     "tools/build-iphone-ios26.py": "b7e52fbb46ae14cd1891ebebecc469a5f8efe9efc4fe091380bf133432378f8a",
+    "tools/build-iphone26-entry-probe.py": "00bf3f94481d430843cdaebb89181abc17cc46178493f4feb0ab461f18b44411",
     "tools/build-kernel.sh": "31acd93f14bee7929188f491098f883b4dc8a29490a1e007257f387ad07123d4",
     "tools/build-metal.py": "18eb8f6f50ceb38f72e8109e42567f851c8c1da518ec6d74f493f78a489f8172",
     "tools/build-power-probe.py": "250a12bd6437e131f2288069b8a4d551eff789d9c1c3aa76a7abd39082c01534",
