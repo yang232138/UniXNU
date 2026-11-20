@@ -1,0 +1,141 @@
+{
+  "inputs": {
+    "kernelcache_sha256": "a17cd978b8c20c5a1099d2bbd5a142e5cbc80f36fc85a6676d4b7fa9ea7d6165",
+    "entry": "com.apple.kernel"
+  },
+  "functions": [
+    {
+      "original": "0xfffffe000a6d7afc",
+      "original_size": 312,
+      "original_sha256": "04210b0dfdbf2aa8d8c5b7ee79922a40d0753653d8622e9f8f6f3dfd660f0d14",
+      "native_symbol": "_lck_rw_gate_destroy",
+      "evidence": "Uses the second argument as the gate, runs the mapped gate destruction checks, and never frees the gate allocation. This is the rw gate destroy wrapper. osfmk/kern/locks.c:3159."
+    },
+    {
+      "original": "0xfffffe000a6d9438",
+      "original_size": 12,
+      "original_sha256": "9402b1c87437c50432f104a3340aa803d3e6e8d7974a146ede566f10e306266c",
+      "native_symbol": "_lck_mtx_gate_open",
+      "evidence": "Moves the gate from the second argument to the first and tail-branches to the mapped gate_open helper. osfmk/kern/locks.c:3547."
+    },
+    {
+      "original": "0xfffffe000a6d9454",
+      "original_size": 12,
+      "original_sha256": "58da13a6911110ea740bff1c5aba0abdd70ee92c705568c03685d35cbacf8c18",
+      "native_symbol": "_lck_mtx_gate_steal",
+      "evidence": "Moves the gate from the second argument to the first and tail-branches to the mapped gate_steal helper. osfmk/kern/locks.c:3607."
+    },
+    {
+      "original": "0xfffffe000a6fe460",
+      "original_size": 80,
+      "original_sha256": "d5f917a7d06dcffe4e3cad285318ebd4bec2ae31b8fd70e8c22352742266e1a3",
+      "native_symbol": "_smr_leave",
+      "evidence": "Clears the current CPU read-side sequence with a release store and decrements the preemption count, with the underflow path already paired. osfmk/kern/smr.c:684."
+    },
+    {
+      "original": "0xfffffe000a744df0",
+      "original_size": 60,
+      "original_sha256": "6d4da80d14eef1e08564ef319969bf071e436c232bae67f1e67a8af63471a733",
+      "native_symbol": "_mach_to_bsd_errno",
+      "evidence": "Looks up a 32-bit errno for Mach results 0 through 56 and returns EIO otherwise. The 57-element lookup table is byte-identical to the native kernel table. osfmk/kern/bsd_kern.c:1392."
+    },
+    {
+      "original": "0xfffffe000a7bf774",
+      "original_size": 60,
+      "original_sha256": "0c1008028891282d605d4c849d5df26b495a581d2026d819f28ccdf546388839",
+      "native_symbol": "_upl_valid_page",
+      "evidence": "Tests nonzero phys_addr, then returns the inverse of bit 1 of the second UPL word. That bit is absent in the 8-byte entry. osfmk/vm/vm_pageout.c:10409 and osfmk/mach/memory_object_types.h:745."
+    },
+    {
+      "original": "0xfffffe000a7c6558",
+      "original_size": 44,
+      "original_sha256": "bc74c5dddea0fba3483910e52839bb71601ab89dbf3f4b14b63eb85d28acc4c8",
+      "native_symbol": "_upl_page_present",
+      "evidence": "Tests the first 32-bit word of the indexed 8-byte UPL entry for nonzero. The word is phys_addr in the verified UPL ABI. osfmk/vm/vm_pageout.c:10394 and osfmk/mach/memory_object_types.h:482."
+    },
+    {
+      "original": "0xfffffe000a7c6584",
+      "original_size": 56,
+      "original_sha256": "f1af82d101a3cacbfbc14ce825902314c70e6f3d1ad52658a000d193bb6e36d3",
+      "native_symbol": "_upl_dirty_page",
+      "evidence": "Tests nonzero phys_addr and extracts bit 2 of the flags word, the dirty bit in the 8-byte UPL ABI. osfmk/vm/vm_pageout.c:10404 and osfmk/mach/memory_object_types.h:739."
+    },
+    {
+      "original": "0xfffffe000a87630c",
+      "original_size": 148,
+      "original_sha256": "3bcb5c0ee06fee4c54a0dd6497b3927998a3c9e4f5b51e41972785b24e9b5c7b",
+      "native_symbol": "_buf_bawrite",
+      "evidence": "Waits on the vnode using the buf_bawrite diagnostic name, then calls the mapped vnop_bwrite_desc operation on the buffer. bsd/vfs/vfs_bio.c:2738."
+    },
+    {
+      "original": "0xfffffe000a87e270",
+      "original_size": 100,
+      "original_sha256": "eae23cfa8d529697d68067a7d5433ddf40900e905e94339a25435f067d35ecd4",
+      "native_symbol": "_cluster_max_io_size",
+      "evidence": "Selects read/write mount limits with CL_READ=1 and CL_WRITE=2, then applies the UPL limit and page rounding. The native routine computes this with the native PAGE_SHIFT. bsd/vfs/vfs_cluster.c:401."
+    },
+    {
+      "original": "0xfffffe000a8c7cd4",
+      "original_size": 196,
+      "original_sha256": "81616de23ca8cf31c7e46de44ddab093c069acc00cfb862fb61abb6d1b0d9373",
+      "native_symbol": "_vnode_setmountedon",
+      "evidence": "Takes the vnode lock, sets SI_MOUNTEDON bit 0 in specinfo flags, and releases the lock. bsd/vfs/kpi_vfs.c:2409."
+    },
+    {
+      "original": "0xfffffe000a8c7d98",
+      "original_size": 196,
+      "original_sha256": "d7b8052142c7b78df9a9e108b0aa59bb826495bfef8d55aa822630ccfc3bc188",
+      "native_symbol": "_vnode_clearmountedon",
+      "evidence": "Takes the vnode lock, clears SI_MOUNTEDON bit 0 in specinfo flags, and releases the lock. bsd/vfs/kpi_vfs.c:2417."
+    },
+    {
+      "original": "0xfffffe000a8c95b8",
+      "original_size": 104,
+      "original_sha256": "1253b0220f55b2732bfa342870546120df4d96daecc780fcba22b1255e37b44d",
+      "native_symbol": "_VNOP_FSYNC",
+      "evidence": "Constructs arguments containing the mapped vnop_fsync_desc, vnode, waitfor integer and vfs context, then calls the vnode operation. bsd/vfs/kpi_vfs.c:4372."
+    },
+    {
+      "original": "0xfffffe000a8cab50",
+      "original_size": 96,
+      "original_sha256": "97ffdf4aaf48533be1b222538f967a22eff9a7695a509c48d4dea382605adc14",
+      "native_symbol": "_VNOP_STRATEGY",
+      "evidence": "Constructs the two-word arguments containing the mapped vnop_strategy_desc and the buffer, then dispatches via the buffer vnode operation table. bsd/vfs/kpi_vfs.c:6423."
+    },
+    {
+      "original": "0xfffffe000a8cb050",
+      "original_size": 76,
+      "original_sha256": "fd26069aeabf2b26896becaa4a301636787837c6cf224f85353badc425767058",
+      "native_symbol": "_need_fsevent",
+      "evidence": "Checks the 16-entry event watcher array then returns false for vnode tag VT_DEVFS=18. bsd/vfs/vfs_fsevents.c:320."
+    },
+    {
+      "original": "0xfffffe000ab6dd8c",
+      "original_size": 416,
+      "original_sha256": "266de174ceb5579c7727db333d2cba0b013eded18a4d29506632de9c746f6a71",
+      "native_symbol": "_ktriage_record",
+      "evidence": "Consumes thread ID, debug ID and argument, supplies the current thread ID for zero, then records to the triage buffer with preemption disabled. bsd/kern/kdebug_triage.c:178."
+    },
+    {
+      "original": "0xfffffe000abcfddc",
+      "original_size": 8,
+      "original_sha256": "224d4df0836ae187285a713f6eab38d506f106d5205135a58ab1548d5684fce9",
+      "native_symbol": "_uiomove",
+      "evidence": "BTI and a tail branch to the mapped uiomove64. The source wrapper preserves x0/x1/x2 and forwards the pointer as addr64_t. bsd/kern/kern_subr.c:227."
+    },
+    {
+      "original": "0xfffffe000adf2164",
+      "original_size": 40,
+      "original_sha256": "9128c527e2274be1c86889c9e538f6a2b1041517fd46c2d71a00945e22450866",
+      "native_symbol": "__ZN12IODMACommand12OutputHost32EPS_NS_9Segment64EPvj",
+      "evidence": "Stores the two truncated 32-bit Segment64 fields in host byte order at output index times 8 and returns true. iokit/Kernel/IODMACommand.cpp:1668."
+    },
+    {
+      "original": "0xfffffe000adf52dc",
+      "original_size": 40,
+      "original_sha256": "7b4649bc8eb8ed3ae87fb5efc6a734390f930bb9ee32b58efc1482d1265ef750",
+      "native_symbol": "__ZN12IODMACommand12OutputHost64EPS_NS_9Segment64EPvj",
+      "evidence": "Stores the two 64-bit Segment64 fields in host byte order at output index times 16 and returns true. iokit/Kernel/IODMACommand.cpp:1700."
+    }
+  ]
+}
