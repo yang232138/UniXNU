@@ -21,6 +21,7 @@ archives = [
 [device_tree]
 source = "device:houji-first-entry.dts"
 
+# First entry uses a read-only payload and one physical CPU.
 [payload]
 title = "iPhone iOS 26.6.2 XNU"
 timeout = 5
