@@ -27,7 +27,7 @@ if [ "${HOUJI_IPHONE26_AUTO_BOOT:-0}" = 1 ]; then
   extra_defines+=(-D WITH_HOUJI_IPHONE26_AUTO_BOOT=TRUE)
 fi
 # Explicit experimental profiles; default stage-1 builds remain unchanged.
-for feature in HIGH_RAM ROOT_RAM RAM_PROBE STORAGE_PROBE CLOCK_MMIO UFS_MMIO; do
+for feature in HIGH_RAM ROOT_RAM RAM_PROBE STORAGE_PROBE CLOCK_MMIO UFS_MMIO POWER_KEY; do
   variable="HOUJI_${feature}"
   value=${!variable:-0}
   if [ "$value" = 1 ]; then

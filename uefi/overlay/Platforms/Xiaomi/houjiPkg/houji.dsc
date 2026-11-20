@@ -35,6 +35,7 @@
   DEFINE WITH_HOUJI_STORAGE_PROBE = FALSE
   DEFINE WITH_HOUJI_CLOCK_MMIO    = FALSE
   DEFINE WITH_HOUJI_UFS_MMIO      = FALSE
+  DEFINE WITH_HOUJI_POWER_KEY     = FALSE
 
   #
   # 0 = SM8650-AA
@@ -119,6 +120,10 @@
   UniXNULib|UniXNUPkg/Library/UniXNULib/UniXNULib.inf
 
 [Components]
+!if $(WITH_HOUJI_POWER_KEY) == TRUE
+  houjiPkg/Drivers/HoujiPowerKeyDxe/HoujiPowerKeyDxe.inf
+  SiliciumPkg/Drivers/KeypadDxe/KeypadDxe.inf
+!endif
 !if $(WITH_HOUJI_STORAGE_PROBE) == TRUE
   houjiPkg/Application/HoujiStorageProbe/HoujiStorageProbe.inf
 !endif

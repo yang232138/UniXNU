@@ -25,6 +25,10 @@
   INF SiliciumPkg/Drivers/SimpleFbDxe/SimpleFbDxe.inf
   INF MdeModulePkg/Universal/Console/ConPlatformDxe/ConPlatformDxe.inf
   INF MdeModulePkg/Universal/Console/ConSplitterDxe/ConSplitterDxe.inf
+!if $(WITH_HOUJI_POWER_KEY) == TRUE
+  INF houjiPkg/Drivers/HoujiPowerKeyDxe/HoujiPowerKeyDxe.inf
+  INF SiliciumPkg/Drivers/KeypadDxe/KeypadDxe.inf
+!endif
   INF MdeModulePkg/Universal/Console/GraphicsConsoleDxe/GraphicsConsoleDxe.inf
   INF MdeModulePkg/Universal/BdsDxe/BdsDxe.inf
   INF UniXNUPkg/Driver/UniXNUDxe/UniXNUDxe.inf

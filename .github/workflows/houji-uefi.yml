@@ -19,6 +19,9 @@ on:
       probe_arm_init_marker:
         type: boolean
         default: false
+      houji_power_key:
+        type: boolean
+        default: false
     secrets:
       HOUJI_305_UEFI_INPUT_20261120:
         required: true
@@ -213,6 +216,8 @@ jobs:
           PY
 
       - name: Compile RAM-only firmware and DarwinBoot
+        env:
+          HOUJI_POWER_KEY: ${{ inputs.houji_power_key && '1' || '0' }}
         run: |
           set -euo pipefail
           bash archive/scripts/build-uefi.sh "$RUNNER_TEMP/uefi" "$RUNNER_TEMP/unixnu" \
