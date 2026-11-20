@@ -1,0 +1,116 @@
+--- a/DarwinBootPkg/Driver/DarwinBoot.c
++++ b/DarwinBootPkg/Driver/DarwinBoot.c
+@@ -284,9 +284,14 @@
+   return Found ? EFI_SUCCESS : EFI_LOAD_ERROR;
+ }
+ 
++typedef struct {
++  UINTN  Base;
++  UINTN  Size;
++} DARWIN_DRAM_FIELDS;
++
+ STATIC
+ BOOLEAN
+-AdtNode (CONST UINT8 *Data, UINTN Size, UINTN *Offset, UINTN Depth, UINTN ParentPath, UINTN *RamdiskOffset, UINTN *TrustCacheOffset, UINTN *AddonOffset, UINTN *PolicyOffset, UINT64 *WindowSize, BOOLEAN *KeepPacked, UINTN *ExcludedOffset, UINTN *ExcludedCapacity, UINTN *InputsOffset)
++AdtNode (CONST UINT8 *Data, UINTN Size, UINTN *Offset, UINTN Depth, UINTN ParentPath, UINTN *RamdiskOffset, UINTN *TrustCacheOffset, UINTN *AddonOffset, UINTN *PolicyOffset, UINT64 *WindowSize, BOOLEAN *KeepPacked, UINTN *ExcludedOffset, UINTN *ExcludedCapacity, UINTN *InputsOffset, DARWIN_DRAM_FIELDS *Dram)
+ {
+   UINT32 Properties;
+   UINT32 Children;
+@@ -298,6 +303,7 @@
+   UINTN  AddonCandidate;
+   UINTN  PolicyCandidate;
+   UINTN  MemoryCandidate;
++  DARWIN_DRAM_FIELDS  NodeDram;
+   UINTN  ExcludedCandidate;
+   UINTN  ExcludedLength;
+   UINTN  InputsCandidate;
+@@ -311,6 +317,8 @@
+   AddonCandidate = MAX_UINTN;
+   PolicyCandidate = MAX_UINTN;
+   MemoryCandidate = MAX_UINTN;
++  NodeDram.Base = MAX_UINTN;
++  NodeDram.Size = MAX_UINTN;
+   ExcludedCandidate = MAX_UINTN;
+   ExcludedLength = 0;
+   InputsCandidate = MAX_UINTN;
+@@ -351,6 +359,16 @@
+       if ((PolicyCandidate != MAX_UINTN) || (Length != 16)) { return FALSE; }
+       PolicyCandidate = *Offset;
+     }
++    if ((Depth == 1) && (ParentPath == 0)) {
++      if (AsciiStrCmp ((CONST CHAR8 *)(Data + *Offset - 36), "dram-base") == 0) {
++        if ((NodeDram.Base != MAX_UINTN) || (Length != sizeof (UINT64))) { return FALSE; }
++        NodeDram.Base = *Offset;
++      }
++      if (AsciiStrCmp ((CONST CHAR8 *)(Data + *Offset - 36), "dram-size") == 0) {
++        if ((NodeDram.Size != MAX_UINTN) || (Length != sizeof (UINT64))) { return FALSE; }
++        NodeDram.Size = *Offset;
++      }
++    }
+     if (AsciiStrCmp ((CONST CHAR8 *)(Data + *Offset - 36), "darwinboot-memory-size") == 0) {
+       if ((MemoryCandidate != MAX_UINTN) || (Length != 8)) { return FALSE; }
+       MemoryCandidate = *Offset;
+@@ -392,6 +410,13 @@
+     if ((Path != 2) || (*PolicyOffset != MAX_UINTN)) { return FALSE; }
+     *PolicyOffset = PolicyCandidate;
+   }
++  if (Path == 1) {
++    if ((Dram->Base != MAX_UINTN) ||
++        (NodeDram.Base == MAX_UINTN) || (NodeDram.Size == MAX_UINTN)) {
++      return FALSE;
++    }
++    *Dram = NodeDram;
++  }
+   if (MemoryCandidate != MAX_UINTN) {
+     if ((Path != 1) || (*WindowSize != 0)) { return FALSE; }
+     *WindowSize = U64 (Data + MemoryCandidate);
+@@ -408,7 +433,7 @@
+   }
+   if (Children > (Size - *Offset) / 8) { return FALSE; }
+   for (Index = 0; Index < Children; Index++) {
+-    if (!AdtNode (Data, Size, Offset, Depth + 1, Path, RamdiskOffset, TrustCacheOffset, AddonOffset, PolicyOffset, WindowSize, KeepPacked, ExcludedOffset, ExcludedCapacity, InputsOffset)) { return FALSE; }
++    if (!AdtNode (Data, Size, Offset, Depth + 1, Path, RamdiskOffset, TrustCacheOffset, AddonOffset, PolicyOffset, WindowSize, KeepPacked, ExcludedOffset, ExcludedCapacity, InputsOffset, Dram)) { return FALSE; }
+   }
+   return TRUE;
+ }
+@@ -776,6 +801,7 @@
+   VOID                            *Addon;
+   UINTN                           ImageSize;
+   UINTN                           TreeSize;
++  DARWIN_DRAM_FIELDS              Dram;
+   UINTN                           TrustCacheSize;
+   UINTN                           AddonSize;
+   CHAR16                          *TreePath;
+@@ -892,7 +918,9 @@
+   OutsideOffset = MAX_UINTN;
+   OutsideCapacity = 0;
+   if (!FindOutsideTable (Tree, TreeSize, &OutsideOffset, &OutsideCapacity)) { OutsideOffset = MAX_UINTN; }
+-  if (!AdtNode (Tree, TreeSize, &Offset, 0, 3, &RamdiskOffset, &TrustCacheOffset, &AddonOffset, &PolicyOffset, &WindowSize, &KeepPacked, &ExcludedOffset, &ExcludedCapacity, &InputsOffset) || (Offset != TreeSize)) { Status = EFI_COMPROMISED_DATA; goto Fail; }
++  Dram.Base = MAX_UINTN;
++  Dram.Size = MAX_UINTN;
++  if (!AdtNode (Tree, TreeSize, &Offset, 0, 3, &RamdiskOffset, &TrustCacheOffset, &AddonOffset, &PolicyOffset, &WindowSize, &KeepPacked, &ExcludedOffset, &ExcludedCapacity, &InputsOffset, &Dram) || (Offset != TreeSize) || (Dram.Base == MAX_UINTN)) { Status = EFI_COMPROMISED_DATA; goto Fail; }
+   if (KeepPacked && (!RamdiskPacked || (RamdiskOffset == MAX_UINTN))) { Status = EFI_COMPROMISED_DATA; goto Fail; }
+   if (WindowSize == 0) { WindowSize = WINDOW_SIZE; }
+   if (Kernel.Base > MAX_UINT64 - WindowSize) { Status = EFI_LOAD_ERROR; goto Fail; }
+@@ -998,6 +1026,21 @@
+   Args->DeviceTreeLength = (UINT32)TreeSize;
+   CopyMem (Args->CommandLine, CommandLine, sizeof (CommandLine));
+   CopyMem ((VOID *)(UINTN)TreeAddress, Tree, TreeSize);
++  if ((U64 ((UINT8 *)Tree + Dram.Base) == 0) && (U64 ((UINT8 *)Tree + Dram.Size) == 0)) {
++    // A zero pair marks an unknown physical DRAM layout. Advertise only the
++    // page-aligned span this loader actually obtained from UEFI for houji.
++    // The first-entry profile reserves the complete kernel window atomically.
++    if ((Allocated != WindowSize) || (Address == 0) || (WindowSize == 0)) {
++      Status = EFI_COMPROMISED_DATA;
++      goto Fail;
++    }
++    WriteUnaligned64 ((UINT64 *)(UINTN)(TreeAddress + Dram.Base), Address);
++    WriteUnaligned64 ((UINT64 *)(UINTN)(TreeAddress + Dram.Size), WindowSize);
++    Print (L"DARWINBOOT: owned DRAM base=0x%lx size=0x%lx\n", Address, WindowSize);
++  } else if ((U64 ((UINT8 *)Tree + Dram.Base) == 0) || (U64 ((UINT8 *)Tree + Dram.Size) == 0)) {
++    Status = EFI_COMPROMISED_DATA;
++    goto Fail;
++  }
+   if (Request->Ramdisk != NULL) {
+     if (KeepPacked) { CopyMem ((VOID *)(UINTN)RamdiskAddress, Request->Ramdisk, Request->RamdiskSize); }
+     else { CopyRamdisk ((VOID *)(UINTN)RamdiskAddress, Request->Ramdisk, Request->RamdiskSize, RamdiskPacked); }

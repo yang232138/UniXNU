@@ -10,6 +10,7 @@ on:
       - 'uefi/overlay/Platforms/Xiaomi/houjiPkg/Drivers/HoujiPowerKeyDxe/**'
       - 'targets/ios-26.6.2-23G90/arm-init-marker.S'
       - 'targets/ios-26.6.2-23G90/arm-vm-init-return-marker.S'
+      - 'targets/ios-26.6.2-23G90/darwinboot-owned-dram.patch'
 
 permissions:
   contents: read
