@@ -26,9 +26,9 @@ fetch = ["KernelCache", "DeviceTree", "StaticTrustCache", "Cryptex1,SystemTrustC
 "094-97238-092.dmg.aea.trustcache" = "b965382024b6706d10111c978fd4986f27e1a3ae7b110b580f3c95ccb47e20a4"
 "094-96441-094.dmg.trustcache" = "8473b31e648ff0582e941432c1b43f0ea3d1754e9d5b4951601d050c0141f9e9"
 
-# Native staging path consumed by UniXNU build kernel --skip-prelink.
+# The UniXNU build seals the source crypto provider in the finalized kernel.
 [kernel.prelink]
-kernel = "build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped.noctf"
+kernel = "build/xnu/ios-obj/DEVELOPMENT_ARM64_BCM2837/mach.development.bcm2837.unstripped"
 
 [[source]]
 name = "IOStorageFamily"
