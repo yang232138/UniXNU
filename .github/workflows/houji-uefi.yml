@@ -1,0 +1,154 @@
+name: houji RAM-only UEFI
+
+on:
+  push:
+    branches: [houji/ios26-iphone-bringup]
+    paths:
+      - '.github/workflows/houji-uefi.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Verify repository and prepare build tools
+        run: |
+          set -euo pipefail
+          mkdir -p out/houji-uefi
+          python3 tools/check-source-tree.py
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang llvm lld make gcc uuid-dev nasm acpica-tools
+          python3 -m venv "$RUNNER_TEMP/python"
+          "$RUNNER_TEMP/python/bin/pip" install antlr4-python3-runtime==4.13.2 cryptography
+          echo "$RUNNER_TEMP/python/bin" >> "$GITHUB_PATH"
+
+      - name: Assemble fixed houji UEFI and UniXNU sources
+        run: |
+          set -euo pipefail
+          fetch_pin() {
+            git init -q "$1"
+            git -C "$1" fetch --depth 1 "$2" "$3"
+            git -C "$1" checkout -q --detach FETCH_HEAD
+            [ "$(git -C "$1" rev-parse HEAD)" = "$3" ]
+          }
+          mu="$RUNNER_TEMP/mu"
+          uefi="$RUNNER_TEMP/uefi"
+          core="$RUNNER_TEMP/unixnu"
+          revision=$(python3 -c 'import json; print(json.load(open("sources.lock.json"))["components"]["uefi"]["revision"])')
+          fetch_pin "$mu" https://github.com/Project-Silicium/Mu-Silicium.git "$revision"
+          git -C "$mu" submodule update --init --depth 1 --jobs 4 -- \
+            Common/Mu Common/Mu_OEM_Sample Mu_Basecore Silicium-ACPI \
+            Silicon/Silicium/OpensslPkg/Library/OpensslLib/openssl
+          git -C "$mu/Mu_Basecore" submodule update --init --depth 1 --jobs 4 -- \
+            MdePkg/Library/BaseFdtLib/libfdt MdePkg/Library/MipiSysTLib/mipisyst \
+            MdeModulePkg/Library/BrotliCustomDecompressLib/brotli \
+            SecurityPkg/DeviceSecurity/SpdmLib/libspdm
+          python3 tools/prepare-sources.py uefi --upstream "$mu" --output "$uefi"
+          python3 - <<'PY'
+          import json, os, shutil, subprocess
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"])
+          pins = json.loads(Path("sources.lock.json").read_text())["uefi_submodules"]
+          for name, pin in pins.items():
+              if name == "Binaries":
+                  continue
+              source = root / "mu" / name
+              revision = subprocess.check_output(["git", "-C", source, "rev-parse", "HEAD"], text=True).strip()
+              if revision != pin:
+                  raise SystemExit(f"{name}: expected {pin}, got {revision}")
+              shutil.copytree(source, root / "uefi" / name, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git"))
+          PY
+          git -C "$uefi/Mu_Basecore" apply "$GITHUB_WORKSPACE/uefi/patches/Mu_Basecore.patch"
+          core_revision=$(python3 -c 'import json; print(json.load(open("sources.lock.json"))["iphone_ios26"]["unixnu_revision"])')
+          fetch_pin "$core" https://github.com/UniXNU/UniXNU.git "$core_revision"
+          git -C "$core" submodule update --init --depth 1 -- drivers/DarwinBoot
+          curl -fsSL --retry 2 \
+            https://github.com/microsoft/mu_basecore/releases/download/v2026080000.0.1/basetools-v2026080000.0.1.tar.gz \
+            -o "$RUNNER_TEMP/basetools.tar.gz"
+          echo "a866e053855511985d1d73987024948c04add218530015b8e3c7af5b0996f6f4  $RUNNER_TEMP/basetools.tar.gz" | sha256sum -c
+          tar -xf "$RUNNER_TEMP/basetools.tar.gz" -C "$RUNNER_TEMP" basetools/Linux-x86
+          echo "$RUNNER_TEMP/basetools/Linux-x86" >> "$GITHUB_PATH"
+          {
+            git rev-parse HEAD
+            git -C "$mu" rev-parse HEAD
+            git -C "$core" rev-parse HEAD
+            git -C "$core/drivers/DarwinBoot" rev-parse HEAD
+            clang --version
+            ld.lld --version
+          } > out/houji-uefi/build-inputs.txt
+
+      - name: Materialize and verify OEM inputs
+        env:
+          HOUJI_VENDOR_BUNDLE: ${{ secrets.HOUJI_305_UEFI_INPUT_20261120 }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64, hashlib, io, os, zipfile
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"])
+          module = "HoujiVendorPkg/EnvDxeEnhanced/EnvDxeEnhanced"
+          bundle = base64.b64decode(os.environ["HOUJI_VENDOR_BUNDLE"], validate=True)
+          with zipfile.ZipFile(io.BytesIO(bundle)) as archive:
+              for name in ("manifest.json", module + ".efi", module + ".inf", module + ".depex"):
+                  data = archive.read(name)
+                  if name == module + ".efi" and hashlib.sha256(data).hexdigest() != "deda772aa76039d625f81d5e989652cd18a6e31187f0925acd82959f70fcace4":
+                      raise SystemExit("OEM EnvDxeEnhanced hash differs from the local houji 305 ROM")
+                  target = root / "vendor" / name
+                  target.parent.mkdir(parents=True, exist_ok=True)
+                  target.write_bytes(data)
+              key = archive.read("artifact.key")
+              if len(key) != 32:
+                  raise SystemExit("Unexpected artifact key length")
+              (root / "artifact.key").write_bytes(key)
+          PY
+          python3 archive/scripts/check-uefi.py --uefi "$RUNNER_TEMP/uefi" --vendor "$RUNNER_TEMP/vendor"
+
+      - name: Compile RAM-only firmware and DarwinBoot
+        run: |
+          set -euo pipefail
+          bash archive/scripts/build-uefi.sh "$RUNNER_TEMP/uefi" "$RUNNER_TEMP/unixnu" \
+            "$RUNNER_TEMP/vendor" "$RUNNER_TEMP/unixnu/drivers/DarwinBoot" 2>&1 | tee out/houji-uefi/build.log
+
+      - name: Verify and encrypt compiled components
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, struct
+          from pathlib import Path
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          root = Path(os.environ["RUNNER_TEMP"])
+          build = root / "uefi/Build/houjiPkg/DEBUG_CLANGPDB"
+          files = [build / "FV/SILICIUM_UEFI.fd", build / "AARCH64/DarwinBoot.efi"]
+          out = Path("out/houji-uefi")
+          key = (root / "artifact.key").read_bytes()
+          receipt = {}
+          for path in files:
+              data = path.read_bytes()
+              if path.suffix == ".fd":
+                  if len(data) != 0x300000 or b"_FVH" not in data:
+                      raise SystemExit("Unexpected houji firmware volume geometry")
+              else:
+                  pe = struct.unpack_from("<I", data, 0x3c)[0]
+                  if data[:2] != b"MZ" or data[pe:pe+6] != b"PE\0\0\x64\xaa":
+                      raise SystemExit("DarwinBoot is not an AArch64 EFI module")
+              receipt[path.name] = {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+              nonce = os.urandom(12)
+              ciphertext = AESGCM(key).encrypt(nonce, data, path.name.encode())
+              (out / (path.name + ".aesgcm")).write_bytes(nonce + ciphertext)
+          (out / "firmware.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          print(json.dumps(receipt, indent=2))
+          PY
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: houji-305-uefi-evidence
+          path: out/houji-uefi/
