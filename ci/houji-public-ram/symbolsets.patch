@@ -1,7 +1,7 @@
 diff --git a/tools/build-ios26-kernel.sh b/tools/build-ios26-kernel.sh
 --- a/tools/build-ios26-kernel.sh
 +++ b/tools/build-ios26-kernel.sh
-@@ -42,6 +42,25 @@
+@@ -42,6 +42,27 @@
  fi
  export XNU_SRC="$HOUJI_XNU" XNU_ARCH=arm64e MACHINE=HOUJI
  export RC_DARWIN_KERNEL_VERSION=25.6.0
@@ -24,6 +24,9 @@ diff --git a/tools/build-ios26-kernel.sh b/tools/build-ios26-kernel.sh
 +  HOST_FLEX=flex HOST_BISON=bison HOST_GM4=m4 LOGCOLORS=n \
 +  build_symbol_set_plists
 +test -s "$obj/symbolsets.plist"
- bash "$HOUJI_REFERENCE/base/xnu-build.sh" -j"${HOUJI_JOBS:-8}" all HOUJI_STANDALONE_KERNEL=1
++# Every standalone kernel build here is the build phase only: 'all' additionally
++# runs config_all and asks for kext symbol sets this RAM-only kernel does not use.
+-bash "$HOUJI_REFERENCE/base/xnu-build.sh" -j"${HOUJI_JOBS:-8}" all HOUJI_STANDALONE_KERNEL=1
++bash "$HOUJI_REFERENCE/base/xnu-build.sh" -j"${HOUJI_JOBS:-8}" build HOUJI_STANDALONE_KERNEL=1
  kernel="$HOUJI_XNU/BUILD/obj/mach.development.houji"
  python3 - "$kernel" "${1:-}" <<'PY'
