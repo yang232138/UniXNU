@@ -35,3 +35,4 @@ report = {
 }
 Path("evidence/build.json").write_text(json.dumps(report, indent=2) + "\n")
 print(json.dumps(report, indent=2))
+# Symbolset fix rebuild.
