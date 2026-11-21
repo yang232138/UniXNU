@@ -23,6 +23,7 @@ fetch apple-xnu apple-oss-distributions/xnu ac9718fb1af618d5ce8678d0dc6e8a58f252
 fetch hfs apple-oss-distributions/hfs 124b970fd5390f1c2cd6f985478616a04f6eeb1f
 fetch hakios superboyyy/hakios-arm64e-dada f1ae906fcc43ba8f763663257724ba938fb820ab
 git -C "$base/houji" apply --index "$GITHUB_WORKSPACE/ci/houji-public-ram/local.patch"
+git -C "$base/houji" apply --index "$GITHUB_WORKSPACE/ci/houji-public-ram/symbolsets.patch"
 python3 "$base/houji/tools/update-source-manifest.py"
 python3 "$base/houji/tools/check-source-tree.py"
 sdk=$(xcrun --sdk macosx --show-sdk-path)
